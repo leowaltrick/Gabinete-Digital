@@ -1,0 +1,7 @@
+{
+  "name": "Gabinete Digital",
+  "description": "Plataforma inteligente para gestão de gabinete e demandas públicas.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
