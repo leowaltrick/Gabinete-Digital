@@ -22,7 +22,7 @@ interface DemandMiniMapProps {
   lon?: number;
   address?: string;
   onClick: () => void;
-  onLocationUpdate?: () => void;
+  onLocationUpdate?: (lat: number, lon: number) => void;
 }
 
 const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, tableName = 'demands', lat, lon, address, onClick, onLocationUpdate }) => {
@@ -70,7 +70,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
                             .eq('id', activeId);
                         
                         if (!error && onLocationUpdate) {
-                            onLocationUpdate();
+                            onLocationUpdate(newLat, newLon);
                         }
                     }
                 }
@@ -105,26 +105,30 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
               <span className="text-xs">Buscando endereço...</span>
           </div>
       ) : coords ? (
-        <MapContainer 
-            key={`${coords.lat}-${coords.lon}`} 
-            center={[coords.lat, coords.lon]} 
-            zoom={15} 
-            scrollWheelZoom={false} 
-            zoomControl={false}
-            dragging={false}
-            doubleClickZoom={false}
-            attributionControl={false}
-            style={{ width: '100%', height: '100%' }}
-        >
-            <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <Marker position={[coords.lat, coords.lon]} icon={icon} />
-        </MapContainer>
+        <>
+            <MapContainer 
+                key={`${coords.lat}-${coords.lon}`} 
+                center={[coords.lat, coords.lon]} 
+                zoom={15} 
+                scrollWheelZoom={false} 
+                zoomControl={false}
+                dragging={false}
+                doubleClickZoom={false}
+                attributionControl={false}
+                style={{ width: '100%', height: '100%' }}
+            >
+                <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <Marker position={[coords.lat, coords.lon]} icon={icon} />
+            </MapContainer>
+            {/* Click Capture Layer to ensure onClick always fires */}
+            <div className="absolute inset-0 z-[500] bg-transparent" />
+        </>
       ) : null}
       
       {/* Hover Overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-[400] flex items-center justify-center pointer-events-none">
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-[600] flex items-center justify-center pointer-events-none">
           <div className="bg-white/90 dark:bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 duration-200">
               <Maximize2 className="w-3 h-3" /> Ver no Mapa Global
           </div>

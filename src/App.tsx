@@ -294,6 +294,7 @@ const App: React.FC = () => {
                 setView('map'); 
             } else if (e.detail?.citizenId) {
                 if (e.detail.lat && e.detail.lon) {
+                    // Update state synchronously to prevent race condition
                     setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
                 }
                 setInitialMapViewMode('citizens');
@@ -377,6 +378,28 @@ const App: React.FC = () => {
     const handleViewCitizen = (cpf: string) => {
         setSelectedCitizenId(cpf);
         setView('people');
+    };
+
+    const handleSidebarNavigation = (newView: ViewState) => {
+        // 1. Reset Global Selection States
+        setSelectedCitizenId(null);
+        setEditingDemand(null);
+        setSelectedDemandId(null);
+        
+        // 2. Reset Map Specifics
+        setMapFocus(null);
+        setInitialMapViewMode('demands');
+
+        // 3. Reset Text Search & Specific Filters
+        // We keep date/status as they are often dashboard preferences, but clear specific item searches/filtering
+        setFilters(prev => ({
+            ...prev,
+            search: '',
+            responsibleId: undefined,
+        }));
+
+        // 4. Change View
+        setView(newView);
     };
 
     const handleStatusUpdate = async (demandId: string, newStatus: DemandStatus) => {
@@ -673,7 +696,7 @@ const App: React.FC = () => {
                 
                 <Sidebar 
                     currentView={view === 'fast-track' ? 'demands' : view} 
-                    setView={setView} 
+                    setView={handleSidebarNavigation} 
                     user={currentUser} 
                     onLogout={handleLogout} 
                     toggleTheme={handleThemeToggle} 

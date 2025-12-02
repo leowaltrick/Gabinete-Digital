@@ -157,6 +157,10 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
 
   const handleMapClick = (person: Pessoa) => {
       // Force navigation to map view with this citizen selected
+      if (!person.lat || !person.lon) {
+          if (onNotification) onNotification('error', 'Localização não definida. Aguarde a busca ou insira um endereço válido.');
+          return;
+      }
       const event = new CustomEvent('navigate-to-map', { 
           detail: { 
               citizenId: person.id,
@@ -165,6 +169,16 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
           } 
       });
       window.dispatchEvent(event);
+  };
+
+  const handleLocationUpdate = (lat: number, lon: number) => {
+      if (selectedPerson) {
+          const updated = { ...selectedPerson, lat, lon };
+          setSelectedPerson(updated);
+          // Also update the list so if we go back, it's there
+          setPeopleList(prev => prev.map(p => p.id === updated.id ? updated : p));
+      }
+      if (onPersonUpdate) onPersonUpdate(); // Trigger global refresh
   };
 
   const getFullAddress = (p: Pessoa) => {
@@ -343,7 +357,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                                     lon={selectedPerson.lon}
                                     address={getFullAddress(selectedPerson)}
                                     onClick={() => handleMapClick(selectedPerson)}
-                                    onLocationUpdate={() => { if(onPersonUpdate) onPersonUpdate(); }}
+                                    onLocationUpdate={(lat, lon) => handleLocationUpdate(lat, lon)}
                                 />
                             </div>
                         </div>
