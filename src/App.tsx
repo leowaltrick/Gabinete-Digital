@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback, Suspense, useRef } from 'react';
 import { Database, AlertTriangle, Clock, CheckCircle2, Activity, FilePlus, Zap, TrendingUp, ArrowUpRight, Calendar, Filter, PieChart, BarChart2, ChevronDown, X, AlertCircle, MapPin, Loader2, LogOut, Sun, Moon, User as UserIcon, Wifi, WifiOff, CloudOff, Users, ArrowRight, Phone, Mail, UserPlus, BarChart3 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -22,19 +23,19 @@ const AdminScreen = React.lazy(() => import('@/components/AdminScreen'));
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     administrador: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'admin_panel', 'map'],
-        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: true, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
+        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: true, showUpcomingActivities: true, showRecentActivity: true },
         canCreateDemand: true,
         canCreateCitizen: true
     },
     chefe_de_gabinete: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'map', 'admin_panel'],
-        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: false, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
+        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: false, showUpcomingActivities: true, showRecentActivity: true },
         canCreateDemand: true,
         canCreateCitizen: true
     },
     assessor: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'map', 'admin_panel'],
-        dashboardWidgets: { showTotal: true, showCitizens: false, showPending: true, showInProgress: true, showCompleted: false, showHighPriority: true, showAnalytics: false, showTags: false, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
+        dashboardWidgets: { showTotal: true, showCitizens: false, showPending: true, showInProgress: true, showCompleted: false, showHighPriority: true, showAnalytics: false, showTags: false, showUpcomingActivities: true, showRecentActivity: true },
         canCreateDemand: true,
         canCreateCitizen: true
     }
@@ -344,12 +345,14 @@ const App: React.FC = () => {
 
     const handleLogin = (user: User) => {
         setCurrentUser(user);
+        setView('dashboard'); // Force redirect to dashboard
     };
 
     const handleLogout = () => { 
         setCurrentUser(null); 
         localStorage.removeItem('geo_user');
         setDemands([]); 
+        setView('dashboard'); // Force redirect to dashboard
     };
 
     const handleThemeToggle = () => {
