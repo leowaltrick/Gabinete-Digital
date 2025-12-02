@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Demand, Citizen, DemandStatus, DemandPriority } from '../types';
 import { CheckCircle2, Clock, Zap, ArrowRight, Search, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink, ChevronDown, Calendar, MapPin, User } from 'lucide-react';
 import { formatDate } from '../utils/cpfValidation';
-import DemandDetailsModal from './DemandDetailsModal';
 import Pagination from './Pagination';
 
 interface DemandTrackerProps {
@@ -11,6 +10,7 @@ interface DemandTrackerProps {
   citizens: Citizen[];
   onUpdateStatus: (demandId: string, newStatus: DemandStatus) => void;
   onEdit: (demand: Demand) => void;
+  onViewDemand: (demand: Demand) => void; // New prop to trigger parent modal
   initialSelectionId?: string | null;
   clearSelection?: () => void;
   onInteractionUpdate?: () => void;
@@ -50,8 +50,7 @@ const StatusSelector = React.memo(({ demand, onUpdateStatus }: { demand: Demand,
     );
 });
 
-const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpdateStatus, onEdit, initialSelectionId, clearSelection, onInteractionUpdate, onNotification, onViewCitizen }) => {
-  const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpdateStatus, onEdit, onViewDemand, initialSelectionId, clearSelection, onInteractionUpdate, onNotification, onViewCitizen }) => {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -89,18 +88,10 @@ const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpda
   }, [demands, sortField, sortDirection]);
 
   useEffect(() => { setCurrentPage(1); }, [demands]);
-  useEffect(() => { if (initialSelectionId) { setSelectedDemandId(initialSelectionId); if(clearSelection) setTimeout(clearSelection, 1000); } }, [initialSelectionId]);
+  
+  // NOTE: initialSelectionId is now handled by parent (DemandsView) which sets its own state to show modal.
+  // We can ignore it here or use it to highlight the row.
 
-  const handleNavigate = (direction: 'prev' | 'next') => {
-    const currentIndex = sortedDemands.findIndex(d => d.id === selectedDemandId);
-    if (currentIndex === -1) return;
-    if (direction === 'prev' && currentIndex > 0) setSelectedDemandId(sortedDemands[currentIndex - 1].id);
-    else if (direction === 'next' && currentIndex < sortedDemands.length - 1) setSelectedDemandId(sortedDemands[currentIndex + 1].id);
-  };
-
-  const currentSelectedIndex = selectedDemandId ? sortedDemands.findIndex(d => d.id === selectedDemandId) : -1;
-  const canNavigatePrev = currentSelectedIndex > 0;
-  const canNavigateNext = currentSelectedIndex !== -1 && currentSelectedIndex < sortedDemands.length - 1;
   const totalPages = Math.ceil(sortedDemands.length / itemsPerPage);
   const currentDemands = sortedDemands.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -140,7 +131,7 @@ const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpda
                                 {currentDemands.map(d => {
                                     const citizen = citizens.find(c => c.id === d.citizenId);
                                     return (
-                                            <tr key={d.id} onClick={() => setSelectedDemandId(d.id)} className="hover:bg-white/60 dark:hover:bg-white/5 transition-colors cursor-pointer group">
+                                            <tr key={d.id} onClick={() => onViewDemand(d)} className="hover:bg-white/60 dark:hover:bg-white/5 transition-colors cursor-pointer group">
                                                 <td className="p-4 first:pl-6">
                                                     <div className="font-bold text-slate-900 dark:text-white truncate max-w-[250px]" title={d.title}>{d.title}</div>
                                                     <div className="text-xs text-slate-500 dark:text-white/50 truncate mt-0.5 max-w-[250px]">{d.description}</div>
@@ -169,7 +160,7 @@ const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpda
                             {currentDemands.map(d => {
                                 const citizen = citizens.find(c => c.id === d.citizenId);
                                 return (
-                                    <div key={d.id} onClick={() => setSelectedDemandId(d.id)} className="glass-panel p-4 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden group">
+                                    <div key={d.id} onClick={() => onViewDemand(d)} className="glass-panel p-4 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden group">
                                         <div className={`absolute top-0 left-0 w-1 h-full ${d.priority === DemandPriority.HIGH ? 'bg-red-500' : d.priority === DemandPriority.MEDIUM ? 'bg-amber-500' : 'bg-green-500'}`}></div>
                                         <div className="flex justify-between items-start mb-2 pl-3">
                                             <div className="flex items-center gap-2">
@@ -204,21 +195,6 @@ const DemandTracker: React.FC<DemandTrackerProps> = ({ demands, citizens, onUpda
                </>
           )}
       </div>
-      {selectedDemandId && (
-        <DemandDetailsModal 
-           demand={demands.find(d => d.id === selectedDemandId)!}
-           citizen={citizens.find(c => c.id === demands.find(d => d.id === selectedDemandId)?.citizenId) || null}
-           onClose={() => setSelectedDemandId(null)}
-           onEdit={(d) => { setSelectedDemandId(null); onEdit(d); }}
-           onUpdateStatus={(id, status) => { onUpdateStatus(id, status); }}
-           onInteractionUpdate={onInteractionUpdate}
-           onNavigate={(dir) => handleNavigate(dir)}
-           canNavigatePrev={canNavigatePrev}
-           canNavigateNext={canNavigateNext}
-           onNotification={onNotification}
-           onViewCitizen={onViewCitizen}
-        />
-      )}
     </div>
   );
 };

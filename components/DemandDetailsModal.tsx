@@ -301,7 +301,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center sm:p-4">
-        {/* Backdrop */}
+        {/* Backdrop - Updated to darker blur style */}
         <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" 
             onClick={onClose}

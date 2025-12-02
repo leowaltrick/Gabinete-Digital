@@ -23,19 +23,19 @@ const AdminScreen = React.lazy(() => import('@/components/AdminScreen'));
 const DEFAULT_SYSTEM_CONFIG: SystemConfig = {
     administrador: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'admin_panel', 'map'],
-        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: true, showUpcomingActivities: true, showRecentActivity: true },
+        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: true, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
         canCreateDemand: true,
         canCreateCitizen: true
     },
     chefe_de_gabinete: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'map', 'admin_panel'],
-        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: false, showUpcomingActivities: true, showRecentActivity: true },
+        dashboardWidgets: { showTotal: true, showCitizens: true, showPending: true, showInProgress: true, showCompleted: true, showHighPriority: true, showAnalytics: true, showTags: false, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
         canCreateDemand: true,
         canCreateCitizen: true
     },
     assessor: {
         allowedViews: ['dashboard', 'demands', 'new-demand', 'edit-demand', 'people', 'map', 'admin_panel'],
-        dashboardWidgets: { showTotal: true, showCitizens: false, showPending: true, showInProgress: true, showCompleted: false, showHighPriority: true, showAnalytics: false, showTags: false, showUpcomingActivities: true, showRecentActivity: true },
+        dashboardWidgets: { showTotal: true, showCitizens: false, showPending: true, showInProgress: true, showCompleted: false, showHighPriority: true, showAnalytics: false, showTags: false, showUpcomingActivities: true, showRecentActivity: true, showQuickAccess: false },
         canCreateDemand: true,
         canCreateCitizen: true
     }
@@ -162,6 +162,10 @@ const App: React.FC = () => {
 
     const [editingDemand, setEditingDemand] = useState<Demand | null>(null);
     const [selectedCitizenId, setSelectedCitizenId] = useState<string | null>(null);
+    
+    // NEW STATE: Selected Demand ID for View Modal (shared)
+    const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+
     const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
     const [initialDemandView, setInitialDemandView] = useState<'list' | 'board' | 'calendar' | 'map'>('list');
 
@@ -345,14 +349,12 @@ const App: React.FC = () => {
 
     const handleLogin = (user: User) => {
         setCurrentUser(user);
-        setView('dashboard'); // Force redirect to dashboard
     };
 
     const handleLogout = () => { 
         setCurrentUser(null); 
         localStorage.removeItem('geo_user');
         setDemands([]); 
-        setView('dashboard'); // Force redirect to dashboard
     };
 
     const handleThemeToggle = () => {
@@ -364,6 +366,39 @@ const App: React.FC = () => {
     const handleViewCitizen = (cpf: string) => {
         setSelectedCitizenId(cpf);
         setView('people');
+    };
+
+    const handleStatusUpdate = async (demandId: string, newStatus: DemandStatus) => {
+        // 1. Find Old Status for Diff
+        const demand = demands.find(d => d.id === demandId);
+        const oldStatus = demand?.status;
+
+        // 2. Optimistic Update
+        setDemands(prev => prev.map(d => d.id === demandId ? { ...d, status: newStatus } : d)); 
+        
+        if(isSupabaseConfigured() && supabase) { 
+            // 3. Update Demand Status
+            await supabase.from('demands').update({ status: newStatus }).eq('id', demandId); 
+            
+            // 4. Auto-Comment Logic
+            if (oldStatus && oldStatus !== newStatus && currentUser) {
+                const userName = currentUser.name;
+                const commentText = `Status alterado de "${oldStatus}" para "${newStatus}" por ${userName}.`;
+                
+                await supabase.from('demand_interactions').insert({
+                    demanda_id: demandId,
+                    tipo: 'comentario',
+                    texto: commentText,
+                    usuario: 'Sistema', // Or currentUser.name if you prefer 'Sistema' label
+                    created_at: new Date().toISOString()
+                });
+                
+                // Refresh data to show new comment
+                fetchData();
+            }
+
+            showNotification('success', 'Status atualizado!'); 
+        }
     };
 
     const getTimeCutoff = () => {
@@ -535,7 +570,7 @@ const App: React.FC = () => {
         <div className="space-y-2">
             {dashboardScope === 'demands' ? (
                 recentDemands.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><FilePlus className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentDemands.map(d => (
-                    <div key={d.id} onClick={() => { if(currentUser) { setEditingDemand(d); setView('edit-demand'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
+                    <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
                         <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex flex-col items-center justify-center text-brand-600 dark:text-brand-400 font-bold shrink-0 border border-brand-100 dark:border-brand-500/20">
                             <span className="text-xs">{new Date(d.createdAt).getDate()}</span>
                             <span className="text-[8px] uppercase">{new Date(d.createdAt).toLocaleString('default', { month: 'short' }).slice(0,3)}</span>
@@ -582,7 +617,7 @@ const App: React.FC = () => {
                 upcomingDeadlines.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><CheckCircle2 className="w-6 h-6 mb-2 opacity-20" />Tudo em dia!</div> : upcomingDeadlines.map(d => {
                     const daysLeft = Math.ceil((d.date.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                     return (
-                        <div key={d.id} onClick={() => { if(currentUser) { setEditingDemand(d); setView('edit-demand'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
+                        <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
                             <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-bold shrink-0 border border-amber-100 dark:border-amber-500/20">
                                 <span className="text-xs">{d.date.getDate()}</span>
                                 <span className="text-[8px] uppercase">{d.date.toLocaleString('default', { month: 'short' }).slice(0,3)}</span>
@@ -783,8 +818,42 @@ const App: React.FC = () => {
                                     {view === 'edit-demand' && editingDemand && <DemandEdit demand={editingDemand} onSuccess={(id) => { fetchData(); setView('demands'); setEditingDemand(null); }} onCancel={() => { setView('demands'); setEditingDemand(null); }} onNotification={showNotification} />}
                                     {/* Updated AdminScreen */}
                                     {view === 'admin_panel' && currentUser && <AdminScreen currentUser={currentUser} systemConfig={systemConfig} onUpdateConfig={setSystemConfig} onUpdateLocation={setWeatherLocations} onNotification={showNotification} onLogout={handleLogout} toggleTheme={handleThemeToggle} isDarkMode={isDarkMode} />}
-                                    {view === 'demands' && <DemandsView demands={filteredDemands} citizens={citizens} interactions={interactions} users={users} onViewDemand={() => {}} onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} onCreateDemand={() => setView('new-demand')} onUpdateStatus={async (id, status) => { setDemands(prev => prev.map(d => d.id === id ? { ...d, status } : d)); if(isSupabaseConfigured() && supabase) { await supabase.from('demands').update({ status }).eq('id', id); showNotification('success', 'Status atualizado!'); } }} onInteractionUpdate={fetchData} filters={filters} setFilters={setFilters} onNotification={showNotification} defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} onViewCitizen={handleViewCitizen} initialViewMode={initialDemandView} mapMarkers={precalculatedMapMarkers} />}
-                                    {view === 'people' && <PeopleManager initialSearchTerm={selectedCitizenId || undefined} onCreateDemand={(cpf) => { setSelectedCitizenId(cpf); setView('new-demand'); }} onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} onNotification={showNotification} onPersonUpdate={fetchData} permissions={currentRoleConfig} onModeChange={setPeopleManagerMode} />}
+                                    
+                                    {view === 'demands' && (
+                                        <DemandsView 
+                                            demands={filteredDemands} 
+                                            citizens={citizens} 
+                                            interactions={interactions} 
+                                            users={users} 
+                                            onViewDemand={() => {}} 
+                                            onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} 
+                                            onCreateDemand={() => setView('new-demand')} 
+                                            onUpdateStatus={handleStatusUpdate} 
+                                            onInteractionUpdate={fetchData} 
+                                            filters={filters} 
+                                            setFilters={setFilters} 
+                                            onNotification={showNotification} 
+                                            defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} 
+                                            onViewCitizen={handleViewCitizen} 
+                                            initialViewMode={initialDemandView} 
+                                            mapMarkers={precalculatedMapMarkers} 
+                                            initialSelectionId={selectedDemandId} // Pass selection to trigger modal
+                                            clearSelection={() => setSelectedDemandId(null)}
+                                        />
+                                    )}
+                                    
+                                    {view === 'people' && (
+                                        <PeopleManager 
+                                            initialSearchTerm={selectedCitizenId || undefined} 
+                                            onCreateDemand={(cpf) => { setSelectedCitizenId(cpf); setView('new-demand'); }} 
+                                            onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} 
+                                            onNotification={showNotification} 
+                                            onPersonUpdate={fetchData} 
+                                            permissions={currentRoleConfig} 
+                                            onModeChange={setPeopleManagerMode} 
+                                            demands={demands} // Pass demands for filtering
+                                        />
+                                    )}
                                 </div>
                             )}
                             
@@ -801,7 +870,26 @@ const App: React.FC = () => {
                             {/* MAP - Full Height Fixed Container */}
                             {view === 'map' && (
                                 <div className="absolute inset-0 z-0 flex flex-col overflow-hidden pb-[76px] md:pb-0">
-                                    <DemandsView demands={filteredDemands} citizens={citizens} interactions={interactions} users={users} onViewDemand={() => {}} onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} onCreateDemand={() => setView('new-demand')} onUpdateStatus={() => {}} onInteractionUpdate={fetchData} filters={filters} setFilters={setFilters} onNotification={showNotification} initialViewMode="map" defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} onViewCitizen={handleViewCitizen} mapMarkers={precalculatedMapMarkers} />
+                                    <DemandsView 
+                                        demands={filteredDemands} 
+                                        citizens={citizens} 
+                                        interactions={interactions} 
+                                        users={users} 
+                                        onViewDemand={() => {}} 
+                                        onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} 
+                                        onCreateDemand={() => setView('new-demand')} 
+                                        onUpdateStatus={handleStatusUpdate}
+                                        onInteractionUpdate={fetchData} 
+                                        filters={filters} 
+                                        setFilters={setFilters} 
+                                        onNotification={showNotification} 
+                                        initialViewMode="map" 
+                                        defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} 
+                                        onViewCitizen={handleViewCitizen} 
+                                        mapMarkers={precalculatedMapMarkers} 
+                                        initialSelectionId={selectedDemandId} // Pass selection
+                                        clearSelection={() => setSelectedDemandId(null)}
+                                    />
                                 </div>
                             )}
 

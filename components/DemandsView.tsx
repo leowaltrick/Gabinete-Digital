@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Demand, Citizen, DemandStatus, FilterState, DemandInteraction, Notice, DemandPriority } from '../types';
 import KanbanBoard from './KanbanBoard';
@@ -10,6 +11,7 @@ import FilterBar from './FilterBar';
 import DashboardFilter from './DashboardFilter';
 import StatCard from './StatCard';
 import SegmentedControl from './SegmentedControl';
+import DemandDetailsModal from './DemandDetailsModal';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -57,6 +59,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   const [mapViewMode, setMapViewMode] = useState<'demands' | 'citizens'>('demands');
   const [notices, setNotices] = useState<Notice[]>([]);
   const [timeRange, setTimeRange] = useState('30'); 
+  const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
 
   const isDedicatedMapMode = initialViewMode === 'map';
 
@@ -77,8 +80,15 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   }, [demands]);
 
   useEffect(() => {
-    if (initialSelectionId && !isDedicatedMapMode) {
-        setViewMode('list');
+    if (initialSelectionId) {
+        // If coming from dashboard with a selection, ensure we are in a view that supports it
+        // and set the selected ID to open the modal
+        if (!isDedicatedMapMode) {
+             // We can stay in current viewMode or default to list, but we must open the modal
+             // If we force 'list', it feels like a redirect. Let's just open the modal on top of whatever view.
+             // But if the view was 'dashboard' (which isn't a valid viewMode here), it defaults to initialViewMode.
+        }
+        setSelectedDemandId(initialSelectionId);
     }
   }, [initialSelectionId, isDedicatedMapMode]);
 
@@ -154,6 +164,22 @@ const DemandsView: React.FC<DemandsViewProps> = ({
           else setFilters(prev => ({ ...prev, priority: [val] }));
       }
   };
+
+  const handleNavigate = (direction: 'prev' | 'next') => {
+    if (!selectedDemandId) return;
+    const currentIndex = demands.findIndex(d => d.id === selectedDemandId);
+    if (currentIndex === -1) return;
+    
+    if (direction === 'prev' && currentIndex > 0) {
+        setSelectedDemandId(demands[currentIndex - 1].id);
+    } else if (direction === 'next' && currentIndex < demands.length - 1) {
+        setSelectedDemandId(demands[currentIndex + 1].id);
+    }
+  };
+
+  const currentSelectedIndex = selectedDemandId ? demands.findIndex(d => d.id === selectedDemandId) : -1;
+  const canNavigatePrev = currentSelectedIndex > 0;
+  const canNavigateNext = currentSelectedIndex !== -1 && currentSelectedIndex < demands.length - 1;
 
   const currentStatus = filters?.status && filters.status.length === 1 ? filters.status[0] : 'all';
   const currentPriority = filters?.priority && filters.priority.length === 1 ? filters.priority[0] : 'all';
@@ -269,10 +295,13 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                 demands={demands} 
                 citizens={citizens} 
                 onUpdateStatus={onUpdateStatus || (() => {})} 
-                onEdit={onEditDemand}
+                onEdit={(d) => {
+                    // List view usually opens details modal first, but if edit requested directly from row actions
+                    onEditDemand(d);
+                }}
                 onInteractionUpdate={onInteractionUpdate}
-                initialSelectionId={initialSelectionId}
-                clearSelection={clearSelection}
+                // We pass the function to OPEN the shared modal
+                onViewDemand={(d) => setSelectedDemandId(d.id)}
                 onNotification={onNotification}
                 onViewCitizen={onViewCitizen}
             />
@@ -282,7 +311,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                 demands={demands} 
                 citizens={citizens} 
                 onViewDemand={(d) => {
-                    onViewDemand(d);
+                    setSelectedDemandId(d.id);
                 }}
                 onUpdateStatus={onUpdateStatus || (() => {})}
             />
@@ -292,7 +321,10 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                 demands={demands} 
                 interactions={interactions}
                 notices={notices}
-                onEditDemand={onEditDemand}
+                onEditDemand={(d) => {
+                    // Calendar usually opens edit/details. Let's open details modal.
+                    setSelectedDemandId(d.id);
+                }}
             />
         )}
         {viewMode === 'map' && (
@@ -302,8 +334,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                 defaultCenter={defaultLocation}
                 preloadedMarkers={mapMarkers}
                 onViewDemand={(id) => {
-                    const demand = demands.find(d => d.id === id);
-                    if (demand) onViewDemand(demand);
+                    setSelectedDemandId(id);
                 }}
                 // PASS AND CONTROL MAP STATE
                 currentViewMode={mapViewMode}
@@ -311,6 +342,26 @@ const DemandsView: React.FC<DemandsViewProps> = ({
             />
         )}
       </div>
+
+      {/* SHARED MODAL FOR ALL VIEWS */}
+      {selectedDemandId && (
+        <DemandDetailsModal 
+           demand={demands.find(d => d.id === selectedDemandId)!}
+           citizen={citizens.find(c => c.id === demands.find(d => d.id === selectedDemandId)?.citizenId) || null}
+           onClose={() => {
+               setSelectedDemandId(null);
+               if (clearSelection) clearSelection();
+           }}
+           onEdit={(d) => { setSelectedDemandId(null); onEditDemand(d); }}
+           onUpdateStatus={(id, status) => { if(onUpdateStatus) onUpdateStatus(id, status); }}
+           onInteractionUpdate={onInteractionUpdate}
+           onNavigate={(dir) => handleNavigate(dir)}
+           canNavigatePrev={canNavigatePrev}
+           canNavigateNext={canNavigateNext}
+           onNotification={onNotification}
+           onViewCitizen={onViewCitizen}
+        />
+      )}
     </div>
   );
 };

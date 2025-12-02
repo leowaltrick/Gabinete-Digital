@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Search, Loader2, Users, UserPlus, ArrowRight, Edit3, Phone, Mail, MapPin, Download, Save, ChevronLeft, X, BarChart3, PlusCircle } from 'lucide-react';
+import { Search, Loader2, Users, UserPlus, ArrowRight, Edit3, Phone, Mail, MapPin, Download, Save, ChevronLeft, X, BarChart3, PlusCircle, Filter } from 'lucide-react';
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
@@ -22,9 +23,10 @@ interface PeopleManagerProps {
   onNotification?: (type: 'success' | 'error', message: string) => void;
   permissions?: RoleConfig;
   onClearSelection?: () => void;
+  demands?: Demand[]; // Added to support filtering
 }
 
-const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSelectPerson, initialSearchTerm, initialMode = 'list', onCreateDemand, onEditDemand, onUpdateStatus, onModeChange, onInteractionUpdate, onPersonUpdate, onNotification, permissions, onClearSelection }) => {
+const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSelectPerson, initialSearchTerm, initialMode = 'list', onCreateDemand, onEditDemand, onUpdateStatus, onModeChange, onInteractionUpdate, onPersonUpdate, onNotification, permissions, onClearSelection, demands = [] }) => {
   const [viewMode, setViewMode] = useState<'list' | 'details' | 'form'>('list');
   const [selectedPerson, setSelectedPerson] = useState<Pessoa | null>(null);
   const [peopleList, setPeopleList] = useState<Pessoa[]>([]);
@@ -36,6 +38,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [viewingHistoryDemand, setViewingHistoryDemand] = useState<Demand | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [filterHasDemands, setFilterHasDemands] = useState(false); // New Filter State
   
   // Form States
   const [nome, setNome] = useState('');
@@ -101,20 +104,15 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
           setEmailSuggestions([]);
           return;
       }
-      
       const providers = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com.br', 'icloud.com'];
-      
-      // Don't show suggestions if full email is typed (basic check)
       if (providers.some(p => val.endsWith('@' + p))) {
           setEmailSuggestions([]);
           return;
       }
-
       if (!val.includes('@')) {
           setEmailSuggestions(providers.map(p => `${val}@${p}`));
       } else {
           const [user, domainPart] = val.split('@');
-          // Filter providers matching what's typed after @
           const matches = providers.filter(p => p.startsWith(domainPart));
           if (matches.length > 0) {
               setEmailSuggestions(matches.map(p => `${user}@${p}`));
@@ -130,9 +128,27 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
   };
 
   const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); const cleanPhone = telefone ? stripNonDigits(telefone) : null; if (!cleanPhone) { setFormError('É necessário informar o Telefone.'); if(onNotification) onNotification('error', 'Informe o Telefone.'); return; } setIsSaving(true); const pessoaData: any = { nome, sobrenome, email: email || null, telefone: cleanPhone, cep: cep.replace(/\D/g, ''), logradouro, numero, complemento: complemento || null, bairro, cidade, estado: estado.substring(0, 2).toUpperCase() }; try { if (isSupabaseConfigured() && supabase) { let resultData: Pessoa; if (isEditing && existingPerson?.id) { const { data, error } = await supabase.from('citizens').update(pessoaData).eq('id', existingPerson.id).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Dados atualizados!'); } else { const { data, error } = await supabase.from('citizens').insert(pessoaData).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Cidadão cadastrado!'); } if (onPersonUpdate) onPersonUpdate(); const updatedList = isEditing ? peopleList.map(p => p.id === resultData.id ? resultData : p) : [resultData, ...peopleList]; setPeopleList(updatedList); if (isModalMode && onSelectPerson) { onSelectPerson(resultData); } else { setTimeout(() => { setSelectedPerson(resultData); setViewMode('details'); setIsEditing(false); }, 1500); } } else { if(onNotification) onNotification('error', 'Erro de conexão.'); } } catch (error: any) { if(onNotification) onNotification('error', `Erro: ${error.message}`); } finally { setIsSaving(false); } };
-  const filteredPeople = useMemo(() => { return peopleList.filter(p => { const searchLower = searchTerm.toLowerCase(); const fullName = `${p.nome} ${p.sobrenome}`.toLowerCase(); const phoneClean = p.telefone ? p.telefone.replace(/\D/g, '') : ''; const searchClean = searchTerm.replace(/\D/g, ''); return fullName.includes(searchLower) || (searchClean.length > 3 && phoneClean.includes(searchClean)) || (p.email && p.email.toLowerCase().includes(searchLower)); }); }, [peopleList, searchTerm]);
+  
+  const filteredPeople = useMemo(() => { 
+      return peopleList.filter(p => { 
+          const searchLower = searchTerm.toLowerCase(); 
+          const fullName = `${p.nome} ${p.sobrenome}`.toLowerCase(); 
+          const phoneClean = p.telefone ? p.telefone.replace(/\D/g, '') : ''; 
+          const searchClean = searchTerm.replace(/\D/g, ''); 
+          
+          const matchesSearch = fullName.includes(searchLower) || (searchClean.length > 3 && phoneClean.includes(searchClean)) || (p.email && p.email.toLowerCase().includes(searchLower)); 
+          
+          let matchesFilter = true;
+          if (filterHasDemands) {
+              matchesFilter = demands.some(d => d.citizenId === p.id);
+          }
+
+          return matchesSearch && matchesFilter;
+      }); 
+  }, [peopleList, searchTerm, filterHasDemands, demands]);
+
   const stats = useMemo(() => { const total = peopleList.length; const today = new Date().toDateString(); const newToday = peopleList.filter(p => p.created_at && new Date(p.created_at).toDateString() === today).length; const bairroCounts: Record<string, number> = {}; peopleList.forEach(p => { if(p.bairro) bairroCounts[p.bairro] = (bairroCounts[p.bairro] || 0) + 1; }); const topBairro = Object.entries(bairroCounts).sort((a,b) => b[1] - a[1])[0]; return { total, newToday, topBairro: topBairro ? topBairro[0] : 'N/A', topBairroCount: topBairro ? topBairro[1] : 0 }; }, [peopleList]);
-  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterHasDemands]);
   const totalPages = Math.ceil(filteredPeople.length / itemsPerPage);
   const currentPeople = filteredPeople.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const handleExport = () => { const headers = ['Nome', 'Sobrenome', 'Telefone', 'Email', 'Logradouro', 'Número', 'Bairro', 'Cidade', 'UF', 'CEP', 'Data Cadastro']; const rows = filteredPeople.map(p => [`"${p.nome}"`, `"${p.sobrenome}"`, p.telefone || '', p.email || '', `"${p.logradouro}"`, p.numero, `"${p.bairro}"`, `"${p.cidade}"`, p.estado, p.cep, p.created_at ? new Date(p.created_at).toLocaleDateString() : '']); downloadCSV(rows, headers, 'Cidadaos'); };
@@ -158,26 +174,37 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
               </div> 
               
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto"> 
-                  {/* Search Bar - Standardized Style */}
                   {viewMode === 'list' && !isModalMode && (
-                      <div className="relative w-full md:w-[320px] group">
-                          <input 
-                            type="text" 
-                            value={searchTerm} 
-                            onChange={(e) => setSearchTerm(e.target.value)} 
-                            placeholder="Buscar por nome ou telefone..." 
-                            className="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 focus:bg-white dark:focus:bg-black/20 transition-all font-medium text-slate-700 dark:text-white placeholder:text-slate-400 h-11 text-sm" 
-                          />
-                          <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3 group-focus-within:text-brand-500 transition-colors" />
-                          {searchTerm && (
-                            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white">
-                                <X className="w-5 h-5" />
-                            </button>
-                          )}
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <div className="relative w-full md:w-[280px] group">
+                              <input 
+                                type="text" 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                placeholder="Buscar por nome ou telefone..." 
+                                className="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 focus:bg-white dark:focus:bg-black/20 transition-all font-medium text-slate-700 dark:text-white placeholder:text-slate-400 h-11 text-sm" 
+                              />
+                              <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3 group-focus-within:text-brand-500 transition-colors" />
+                              {searchTerm && (
+                                <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                                    <X className="w-5 h-5" />
+                                </button>
+                              )}
+                          </div>
                       </div>
                   )}
 
                   <div className="flex items-center gap-3 w-full sm:w-auto">
+                        {viewMode === 'list' && !isModalMode && (
+                            <button 
+                                onClick={() => setFilterHasDemands(!filterHasDemands)}
+                                className={`w-auto px-4 py-2.5 rounded-xl font-bold border transition-all flex items-center justify-center gap-2 h-11 text-sm ${filterHasDemands ? 'bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-500/20 dark:border-brand-500/30 dark:text-brand-300' : 'bg-white dark:bg-white/5 text-slate-600 dark:text-white/70 border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'}`}
+                                title="Apenas com Demandas"
+                            >
+                                <Filter className="w-4 h-4" /> <span className="hidden sm:inline">Com Demandas</span>
+                            </button>
+                        )}
+
                         {viewMode === 'list' && !isModalMode && (
                             <button onClick={handleExport} className="w-auto px-4 py-2.5 rounded-xl font-bold bg-white dark:bg-white/5 text-slate-600 dark:text-white/70 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 transition-all flex items-center justify-center gap-2 h-11" title="Exportar CSV">
                                 <Download className="w-5 h-5" />
@@ -220,7 +247,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                         {/* Desktop Table */}
                         <table className="w-full text-left border-collapse hidden md:table"> 
                             <thead className="bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm border-b border-slate-200 dark:border-white/10"> <tr className="text-xs font-bold text-slate-500 dark:text-blue-200/50 uppercase tracking-wider"> <th className="p-4 first:pl-6 w-[45%] min-w-[200px]">Cidadão</th> <th className="p-4 w-[20%] whitespace-nowrap">Contato</th> <th className="p-4 w-[25%] min-w-[150px]">Localização</th> <th className="p-4 text-right last:pr-6 w-[10%]">Ação</th> </tr> </thead> 
-                            <tbody className="divide-y divide-slate-200 dark:divide-white/5 text-sm"> {currentPeople.map((pessoa, index) => ( <tr key={pessoa.id || index} onClick={() => handleViewDetails(pessoa)} className="hover:bg-white/60 dark:hover:bg-white/5 transition-colors cursor-pointer group"> <td className="p-4 first:pl-6"> <div className="flex items-center gap-3"> <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-white font-bold text-xs border border-slate-200 dark:border-white/10 shrink-0">{pessoa.nome.charAt(0)}</div> <div className="min-w-0"><div className="font-bold text-slate-900 dark:text-white truncate">{pessoa.nome} {pessoa.sobrenome}</div><div className="text-xs text-slate-500 dark:text-white/50 truncate">{pessoa.email || 'Sem email'}</div></div> </div> </td> <td className="p-4 text-slate-600 dark:text-white/80 whitespace-nowrap">{pessoa.telefone ? formatPhone(pessoa.telefone) : '-'}</td> <td className="p-4 text-slate-600 dark:text-white/80">{pessoa.bairro ? <span className="flex flex-col"><span className="truncate">{pessoa.bairro}</span><span className="text-[10px] text-slate-400 truncate">{pessoa.cidade}/{pessoa.estado}</span></span> : '-'}</td> <td className="p-4 text-right last:pr-6"><div className="p-2 text-slate-400 group-hover:text-brand-600 transition-colors inline-flex bg-slate-100 dark:bg-white/5 rounded-lg group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10">{isModalMode ? <span className="px-3 py-1 bg-brand-500 text-white text-xs font-bold rounded-lg shadow-sm">Selecionar</span> : <ArrowRight className="w-4 h-4" />}</div></td> </tr> ))} </tbody> 
+                            <tbody className="divide-y divide-slate-200 dark:divide-white/5 text-sm"> {currentPeople.map((pessoa, index) => ( <tr key={pessoa.id || index} onClick={() => handleViewDetails(pessoa)} className="hover:bg-white/60 dark:hover:bg-white/5 transition-colors cursor-pointer group"> <td className="p-4 first:pl-6"> <div className="flex items-center gap-3"> <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-white font-bold text-xs border border-slate-200 dark:border-white/10 shrink-0">{pessoa.nome.charAt(0)}</div> <div className="min-w-0"><div className="font-bold text-slate-900 dark:text-white truncate">{pessoa.nome} {pessoa.sobrenome}</div><div className="text-xs text-slate-500 dark:text-white/50 truncate">{pessoa.email || ''}</div></div> </div> </td> <td className="p-4 text-slate-600 dark:text-white/80 whitespace-nowrap">{pessoa.telefone ? formatPhone(pessoa.telefone) : '-'}</td> <td className="p-4 text-slate-600 dark:text-white/80">{pessoa.bairro ? <span className="flex flex-col"><span className="truncate">{pessoa.bairro}</span><span className="text-[10px] text-slate-400 truncate">{pessoa.cidade}/{pessoa.estado}</span></span> : '-'}</td> <td className="p-4 text-right last:pr-6"><div className="p-2 text-slate-400 group-hover:text-brand-600 transition-colors inline-flex bg-slate-100 dark:bg-white/5 rounded-lg group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10">{isModalMode ? <span className="px-3 py-1 bg-brand-500 text-white text-xs font-bold rounded-lg shadow-sm">Selecionar</span> : <ArrowRight className="w-4 h-4" />}</div></td> </tr> ))} </tbody> 
                         </table> 
                         
                         {/* Mobile Cards (Glass Style) */}
@@ -292,6 +319,47 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                                     </div> 
                                 </div> 
                            </div> 
+
+                           {/* Address Section */}
+                           <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-white/40 border-b border-slate-200 dark:border-white/10 pb-2 mb-4">Endereço</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-1">
+                                        <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">CEP</label>
+                                        <div className="relative">
+                                            <input type="text" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={handleCepBlur} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" placeholder="00000-000" />
+                                            {isLoadingCep && <Loader2 className="absolute right-3 top-3 w-5 h-5 text-brand-500 animate-spin" />}
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Logradouro</label>
+                                        <input type="text" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Número</label>
+                                        <input type="text" value={numero} onChange={(e) => setNumero(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Complemento</label>
+                                        <input type="text" value={complemento} onChange={(e) => setComplemento(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Bairro</label>
+                                        <input type="text" value={bairro} onChange={(e) => setBairro(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Cidade</label>
+                                            <input type="text" value={cidade} onChange={(e) => setCidade(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">UF</label>
+                                            <input type="text" value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500 uppercase" maxLength={2} />
+                                        </div>
+                                    </div>
+                                </div>
+                           </div>
+
                            {/* MOBILE STICKY ACTIONS */}
                            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-[#0b1121]/95 backdrop-blur-md border-t border-slate-200 dark:border-white/10 z-30 flex gap-3 md:static md:bg-transparent md:p-0 md:border-0 pb-6">
                                <button type="button" onClick={handleBackToList} className="px-6 py-3 rounded-xl border border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/5 font-bold flex-1 active:scale-95 duration-200 transition-transform">Cancelar</button>

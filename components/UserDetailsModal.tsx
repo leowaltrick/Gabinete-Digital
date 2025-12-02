@@ -101,6 +101,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                         disabled={!isEditing}
                                         placeholder="Ex: João Silva"
                                         className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 outline-none focus:border-brand-500 disabled:opacity-70 disabled:bg-transparent text-sm font-medium text-slate-900 dark:text-white transition-colors"
+                                        autoFocus={isNewUser}
                                     />
                                 </div>
                             </div>
