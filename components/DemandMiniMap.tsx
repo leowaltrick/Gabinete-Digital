@@ -15,17 +15,20 @@ const icon = L.icon({
 });
 
 interface DemandMiniMapProps {
-  demandId: string; // Needed to save coords
+  demandId?: string; // Legacy prop, can act as entityId
+  entityId?: string; // New generic prop
+  tableName?: 'demands' | 'citizens';
   lat?: number;
   lon?: number;
   address?: string;
   onClick: () => void;
-  onLocationUpdate?: () => void; // Callback to refresh parent data
+  onLocationUpdate?: () => void;
 }
 
-const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, lat, lon, address, onClick, onLocationUpdate }) => {
+const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, tableName = 'demands', lat, lon, address, onClick, onLocationUpdate }) => {
   const [coords, setCoords] = useState<{lat: number, lon: number} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const activeId = entityId || demandId;
 
   useEffect(() => {
     // If coords are provided, use them immediately
@@ -60,11 +63,11 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, lat, lon, addre
                     setCoords({ lat: newLat, lon: newLon });
 
                     // SAVE TO DB so it appears on main map
-                    if (isSupabaseConfigured() && supabase && demandId) {
+                    if (isSupabaseConfigured() && supabase && activeId) {
                         const { error } = await supabase
-                            .from('demands')
+                            .from(tableName)
                             .update({ lat: newLat, lon: newLon })
-                            .eq('id', demandId);
+                            .eq('id', activeId);
                         
                         if (!error && onLocationUpdate) {
                             onLocationUpdate();
@@ -82,12 +85,12 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, lat, lon, addre
         const timer = setTimeout(fetchCoords, 1500); 
         return () => clearTimeout(timer);
     }
-  }, [lat, lon, address, demandId]); // Dependency on onLocationUpdate removed to avoid loops
+  }, [lat, lon, address, activeId, tableName]); 
 
   // Don't render map if no coords found and not loading
   if (!coords && !isLoading) {
       return (
-        <div className="w-full h-full bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400">
+        <div className="w-full h-full bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 rounded-xl border border-slate-200 dark:border-white/10 min-h-[150px]">
             <MapPin className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs">Sem localização GPS</span>
         </div>
@@ -123,7 +126,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, lat, lon, addre
       {/* Hover Overlay */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-[400] flex items-center justify-center pointer-events-none">
           <div className="bg-white/90 dark:bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 duration-200">
-              <Maximize2 className="w-3 h-3" /> Expandir Mapa
+              <Maximize2 className="w-3 h-3" /> Ver no Mapa Global
           </div>
       </div>
     </div>

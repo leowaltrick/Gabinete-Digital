@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Search, Loader2, Users, UserPlus, ArrowRight, Edit3, Phone, Mail, MapPin, Download, Save, ChevronLeft, X, BarChart3, PlusCircle, Filter } from 'lucide-react';
+import { Search, Loader2, Users, UserPlus, ArrowRight, Edit3, Phone, Mail, MapPin, Download, Save, ChevronLeft, X, BarChart3, PlusCircle, Filter, Maximize2 } from 'lucide-react';
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
 import DemandDetailsModal from './DemandDetailsModal';
 import Pagination from './Pagination';
 import StatCard from './StatCard';
+import DemandMiniMap from './DemandMiniMap';
 
 interface PeopleManagerProps {
   isModalMode?: boolean;
@@ -154,6 +155,28 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
   const handleExport = () => { const headers = ['Nome', 'Sobrenome', 'Telefone', 'Email', 'Logradouro', 'Número', 'Bairro', 'Cidade', 'UF', 'CEP', 'Data Cadastro']; const rows = filteredPeople.map(p => [`"${p.nome}"`, `"${p.sobrenome}"`, p.telefone || '', p.email || '', `"${p.logradouro}"`, p.numero, `"${p.bairro}"`, `"${p.cidade}"`, p.estado, p.cep, p.created_at ? new Date(p.created_at).toLocaleDateString() : '']); downloadCSV(rows, headers, 'Cidadaos'); };
   const mapPessoaToCitizen = (p: Pessoa): Citizen => ({ id: p.id || 'temp', cpf: p.cpf, name: `${p.nome} ${p.sobrenome}`, email: p.email || '', phone: p.telefone || '', createdAt: p.created_at, logradouro: p.logradouro, numero: p.numero, complemento: p.complemento || undefined, bairro: p.bairro, cep: p.cep, cidade: p.cidade, estado: p.estado });
 
+  const handleMapClick = (person: Pessoa) => {
+      // Force navigation to map view with this citizen selected
+      const event = new CustomEvent('navigate-to-map', { 
+          detail: { 
+              citizenId: person.id,
+              lat: person.lat,
+              lon: person.lon
+          } 
+      });
+      window.dispatchEvent(event);
+  };
+
+  const getFullAddress = (p: Pessoa) => {
+      const parts = [
+          p.logradouro,
+          p.numero ? `Nº ${p.numero}` : null,
+          p.bairro,
+          p.cidade && p.estado ? `${p.cidade} - ${p.estado}` : p.cidade
+      ].filter(Boolean);
+      return parts.join(', ');
+  };
+
   return (
     <div className={`flex flex-col gap-4 animate-in slide-in-from-right duration-500 ${isModalMode ? 'p-0' : ''} relative w-full min-w-0 pb-20 md:pb-0`}>
       <div className="shrink-0 flex flex-col gap-4"> 
@@ -276,7 +299,82 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
           {viewMode === 'details' && selectedPerson && !isModalMode && (
               <div className="w-full">
                   <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-                    <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 relative overflow-hidden"> <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-400 to-blue-600"></div> <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left"> <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-100 dark:border-white/5 shadow-xl flex items-center justify-center shrink-0"> <span className="text-3xl md:text-4xl font-bold text-brand-600 dark:text-brand-400">{selectedPerson.nome.charAt(0)}</span> </div> <div className="flex-1"> <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">{selectedPerson.nome} {selectedPerson.sobrenome}</h2> <div className="flex flex-wrap gap-3 mt-4 justify-center md:justify-start"> {selectedPerson.telefone && <div className="px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 text-sm font-medium flex items-center gap-2 border border-green-200 dark:border-green-500/20"><Phone className="w-3.5 h-3.5" /> {formatPhone(selectedPerson.telefone)}</div>} {selectedPerson.email && <div className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-sm font-medium flex items-center gap-2 border border-blue-200 dark:border-blue-500/20"><Mail className="w-3.5 h-3.5" /> {selectedPerson.email}</div>} </div> </div> </div> </div>
+                    <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 relative overflow-hidden"> 
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-400 to-blue-600"></div> 
+                        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left"> 
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-100 dark:border-white/5 shadow-xl flex items-center justify-center shrink-0"> 
+                                <span className="text-3xl md:text-4xl font-bold text-brand-600 dark:text-brand-400">{selectedPerson.nome.charAt(0)}</span> 
+                            </div> 
+                            <div className="flex-1"> 
+                                <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">{selectedPerson.nome} {selectedPerson.sobrenome}</h2> 
+                                <div className="flex flex-wrap gap-3 mt-4 justify-center md:justify-start"> 
+                                    {selectedPerson.telefone && <div className="px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 text-sm font-medium flex items-center gap-2 border border-green-200 dark:border-green-500/20"><Phone className="w-3.5 h-3.5" /> {formatPhone(selectedPerson.telefone)}</div>} 
+                                    {selectedPerson.email && <div className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-sm font-medium flex items-center gap-2 border border-blue-200 dark:border-blue-500/20"><Mail className="w-3.5 h-3.5" /> {selectedPerson.email}</div>} 
+                                </div> 
+                            </div> 
+                        </div> 
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Address and Map Section */}
+                        <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10">
+                            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 mb-4">
+                                <MapPin className="w-4 h-4" /> Endereço & Localização
+                            </h3>
+                            
+                            <div className="space-y-4">
+                                <div className="flex flex-col gap-1.5 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                                    {selectedPerson.logradouro ? (
+                                        <>
+                                            <p className="font-bold text-slate-800 dark:text-white">{selectedPerson.logradouro}, {selectedPerson.numero}</p>
+                                            {selectedPerson.complemento && <p className="text-xs text-slate-500 dark:text-white/50">{selectedPerson.complemento}</p>}
+                                            <p className="text-sm text-slate-600 dark:text-white/70">{selectedPerson.bairro}</p>
+                                            <p className="text-xs text-slate-400 dark:text-white/40">{selectedPerson.cidade} - {selectedPerson.estado} • {selectedPerson.cep}</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-slate-400 dark:text-white/30 italic text-sm text-center">Endereço não cadastrado.</p>
+                                    )}
+                                </div>
+
+                                <DemandMiniMap
+                                    entityId={selectedPerson.id}
+                                    tableName="citizens"
+                                    lat={selectedPerson.lat}
+                                    lon={selectedPerson.lon}
+                                    address={getFullAddress(selectedPerson)}
+                                    onClick={() => handleMapClick(selectedPerson)}
+                                    onLocationUpdate={() => { if(onPersonUpdate) onPersonUpdate(); }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Recent History Placeholder or Demands List */}
+                        <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 flex flex-col">
+                             <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 mb-4">
+                                <BarChart3 className="w-4 h-4" /> Histórico Recente
+                            </h3>
+                            <div className="flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+                                {personDemands.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {personDemands.slice(0, 5).map(d => (
+                                            <div key={d.id} className="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 flex items-start justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" onClick={() => setViewingHistoryDemand(d)}>
+                                                <div>
+                                                    <p className="font-bold text-slate-800 dark:text-white text-sm line-clamp-1">{d.title}</p>
+                                                    <p className="text-xs text-slate-500 dark:text-white/50">{new Date(d.createdAt).toLocaleDateString()}</p>
+                                                </div>
+                                                <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase ${d.status === 'Concluído' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>{d.status}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-white/30 py-8">
+                                        <p className="text-sm italic">Nenhuma demanda registrada.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
                   </div>
               </div>
           )}

@@ -165,6 +165,10 @@ const App: React.FC = () => {
     
     // NEW STATE: Selected Demand ID for View Modal (shared)
     const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+    
+    // NEW STATE: Map Focus for Citizen Navigation
+    const [mapFocus, setMapFocus] = useState<{lat: number, lon: number} | null>(null);
+    const [initialMapViewMode, setInitialMapViewMode] = useState<'demands' | 'citizens'>('demands');
 
     const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
     const [initialDemandView, setInitialDemandView] = useState<'list' | 'board' | 'calendar' | 'map'>('list');
@@ -286,7 +290,14 @@ const App: React.FC = () => {
     useEffect(() => {
         const handleMapNav = (e: CustomEvent) => {
             if (e.detail?.demandId) {
+                setInitialMapViewMode('demands');
                 setView('map'); 
+            } else if (e.detail?.citizenId) {
+                if (e.detail.lat && e.detail.lon) {
+                    setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
+                }
+                setInitialMapViewMode('citizens');
+                setView('map');
             }
         };
         window.addEventListener('navigate-to-map' as any, handleMapNav);
@@ -889,6 +900,8 @@ const App: React.FC = () => {
                                         mapMarkers={precalculatedMapMarkers} 
                                         initialSelectionId={selectedDemandId} // Pass selection
                                         clearSelection={() => setSelectedDemandId(null)}
+                                        mapFocus={mapFocus} // Pass map focus state
+                                        initialMapViewMode={initialMapViewMode} // Pass initial view mode
                                     />
                                 </div>
                             )}

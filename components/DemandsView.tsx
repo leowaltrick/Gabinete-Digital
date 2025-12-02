@@ -32,6 +32,8 @@ interface DemandsViewProps {
   defaultLocation?: { lat: number; lon: number } | null;
   onViewCitizen?: (citizenId: string) => void;
   mapMarkers?: any[]; 
+  mapFocus?: { lat: number; lon: number } | null;
+  initialMapViewMode?: 'demands' | 'citizens';
 }
 
 const DemandsView: React.FC<DemandsViewProps> = ({ 
@@ -52,7 +54,9 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   onNotification,
   defaultLocation,
   onViewCitizen,
-  mapMarkers
+  mapMarkers,
+  mapFocus,
+  initialMapViewMode = 'demands'
 }) => {
   const [viewMode, setViewMode] = useState<'list' | 'board' | 'calendar' | 'map'>(initialViewMode);
   // Lifted Map State for coordination between FilterBar and MapVisualizer
@@ -97,6 +101,12 @@ const DemandsView: React.FC<DemandsViewProps> = ({
           setViewMode(initialViewMode);
       }
   }, [initialViewMode, isDedicatedMapMode]);
+
+  useEffect(() => {
+      if (initialMapViewMode && isDedicatedMapMode) {
+          setMapViewMode(initialMapViewMode);
+      }
+  }, [initialMapViewMode, isDedicatedMapMode]);
 
   useEffect(() => {
     const loadNotices = async () => {
@@ -339,6 +349,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                 // PASS AND CONTROL MAP STATE
                 currentViewMode={mapViewMode}
                 onChangeViewMode={setMapViewMode}
+                mapFocus={mapFocus} // Pass map focus logic
             />
         )}
       </div>

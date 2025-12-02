@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import * as L from 'leaflet';
@@ -22,6 +23,7 @@ interface MapVisualizerProps {
   preloadedMarkers?: any[];
   currentViewMode: 'demands' | 'citizens'; 
   onChangeViewMode: (mode: 'demands' | 'citizens') => void;
+  mapFocus?: { lat: number; lon: number } | null;
 }
 
 // Icon Cache
@@ -222,7 +224,18 @@ const HybridMapLayer = ({ markers, viewMode, onViewDemand }: any) => {
     );
 };
 
-const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDemand, preloadedMarkers, currentViewMode, onChangeViewMode }) => {
+// Map Controller to handle focus updates
+const MapController = ({ focus }: { focus: { lat: number, lon: number } | null }) => {
+    const map = useMap();
+    useEffect(() => {
+        if (focus) {
+            map.flyTo([focus.lat, focus.lon], 18, { duration: 1.5 });
+        }
+    }, [focus, map]);
+    return null;
+}
+
+const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDemand, preloadedMarkers, currentViewMode, onChangeViewMode, mapFocus }) => {
   const mapRef = useRef<L.Map | null>(null);
   const activeCenter: [number, number] = defaultCenter ? [defaultCenter.lat, defaultCenter.lon] : [-23.5505, -46.6333];
 
@@ -271,6 +284,7 @@ const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDema
             {/* CartoDB Positron Tile Layer */}
             <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' />
             <HybridMapLayer markers={activeMarkers} viewMode={currentViewMode} onViewDemand={onViewDemand} />
+            <MapController focus={mapFocus || null} />
         </MapContainer>
     </div>
   );
