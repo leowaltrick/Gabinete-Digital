@@ -97,8 +97,14 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
       );
   }
 
+  const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+  };
+
   return (
-    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer" onClick={onClick}>
+    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer" onClick={handleClick}>
       {isLoading ? (
           <div className="w-full h-full bg-slate-50 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400">
               <Loader2 className="w-6 h-6 animate-spin mb-2 text-brand-500" />
@@ -123,7 +129,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
                 <Marker position={[coords.lat, coords.lon]} icon={icon} />
             </MapContainer>
             {/* Click Capture Layer to ensure onClick always fires */}
-            <div className="absolute inset-0 z-[500] bg-transparent" />
+            <div className="absolute inset-0 z-[500] bg-transparent" onClick={handleClick} />
         </>
       ) : null}
       

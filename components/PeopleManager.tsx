@@ -1,14 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Search, Loader2, Users, UserPlus, ArrowRight, Edit3, Phone, Mail, MapPin, Download, Save, ChevronLeft, X, BarChart3, PlusCircle, Filter, Maximize2 } from 'lucide-react';
+import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLeft, X, Filter, MapPin, BarChart3 } from 'lucide-react';
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
-import DemandDetailsModal from './DemandDetailsModal';
 import Pagination from './Pagination';
 import StatCard from './StatCard';
-import DemandMiniMap from './DemandMiniMap';
+import CitizenDetailsModal from './CitizenDetailsModal';
 
 interface PeopleManagerProps {
   isModalMode?: boolean;
@@ -24,7 +23,7 @@ interface PeopleManagerProps {
   onNotification?: (type: 'success' | 'error', message: string) => void;
   permissions?: RoleConfig;
   onClearSelection?: () => void;
-  demands?: Demand[]; // Added to support filtering
+  demands?: Demand[];
 }
 
 const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSelectPerson, initialSearchTerm, initialMode = 'list', onCreateDemand, onEditDemand, onUpdateStatus, onModeChange, onInteractionUpdate, onPersonUpdate, onNotification, permissions, onClearSelection, demands = [] }) => {
@@ -35,11 +34,8 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [personDemands, setPersonDemands] = useState<Demand[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [viewingHistoryDemand, setViewingHistoryDemand] = useState<Demand | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [filterHasDemands, setFilterHasDemands] = useState(false); // New Filter State
+  const [filterHasDemands, setFilterHasDemands] = useState(false);
   
   // Form States
   const [nome, setNome] = useState('');
@@ -72,8 +68,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                   const { data } = await supabase.from('citizens').select('*').eq('telefone', clean).maybeSingle(); 
                   if (data) { 
                       setPeopleList([data as Pessoa]); 
-                      setSelectedPerson(data as Pessoa); 
-                      setViewMode('details'); 
+                      handleViewDetails(data as Pessoa);
                   } else { 
                       setSearchTerm(initialSearchTerm); 
                       setViewMode('list'); 
@@ -85,50 +80,30 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
           if(viewMode === 'list') fetchPeople(); 
       } 
   }, [initialSearchTerm]);
+  
   useEffect(() => { if (viewMode === 'list' && !initialSearchTerm && peopleList.length === 0) { fetchPeople(); } }, [viewMode]);
-  useEffect(() => { if (viewMode === 'details' && selectedPerson) { fetchPersonHistory(selectedPerson.id || ''); } }, [viewMode, selectedPerson]);
 
   const fetchPeople = async () => { setIsLoadingList(true); try { if (isSupabaseConfigured() && supabase) { const { data, error } = await supabase.from('citizens').select('*').order('created_at', { ascending: false }).limit(1000); if (error) throw error; if (data) setPeopleList(data as Pessoa[]); } } catch (error) { console.error("Erro ao buscar pessoas:", error); } finally { setIsLoadingList(false); } };
-  const fetchPersonHistory = async (personId: string) => { setIsLoadingHistory(true); try { if (isSupabaseConfigured() && supabase) { let query = supabase.from('demands').select('*').eq('citizen_id', personId); const { data, error } = await query.order('created_at', { ascending: false }); if (error) throw error; if (data) { const mappedDemands = data.map((d: any) => ({ id: d.id, title: d.title, description: d.description, level: d.level, status: d.status, priority: d.priority, type: d.type, deadline: d.deadline, citizenId: d.citizen_id, createdAt: d.created_at, tags: d.tags })); setPersonDemands(mappedDemands); } } } catch (err) { console.error("Erro ao buscar histórico:", err); } finally { setIsLoadingHistory(false); } };
   const clearForm = () => { setNome(''); setSobrenome(''); setEmail(''); setEmailSuggestions([]); setTelefone(''); setCep(''); setLogradouro(''); setNumero(''); setComplemento(''); setBairro(''); setCidade(''); setEstado(''); setExistingPerson(null); setIsEditing(false); setFormError(null); };
   const handleSwitchToForm = () => { if(!canCreate) { if(onNotification) onNotification('error', 'Sem permissão para criar cidadãos.'); return; } clearForm(); setIsEditing(false); setViewMode('form'); };
   const handleBackToList = () => { clearForm(); setSelectedPerson(null); setViewMode('list'); if (onClearSelection) onClearSelection(); };
-  const handleViewDetails = (pessoa: Pessoa) => { if (isModalMode && onSelectPerson) { onSelectPerson(pessoa); return; } setSelectedPerson(pessoa); setViewMode('details'); };
-  const handleEditFromDetails = () => { if(!selectedPerson) return; if(!canCreate) { if(onNotification) onNotification('error', 'Sem permissão para editar.'); return; } setNome(selectedPerson.nome || ''); setSobrenome(selectedPerson.sobrenome || ''); setEmail(selectedPerson.email || ''); setTelefone(formatPhone(selectedPerson.telefone || '')); setCep(selectedPerson.cep || ''); setLogradouro(selectedPerson.logradouro || ''); setNumero(selectedPerson.numero || ''); setComplemento(selectedPerson.complemento || ''); setBairro(selectedPerson.bairro || ''); setCidade(selectedPerson.cidade || ''); setEstado(selectedPerson.estado || ''); setExistingPerson(selectedPerson); setIsEditing(true); setViewMode('form'); };
+  
+  const handleViewDetails = (pessoa: Pessoa) => { 
+      if (isModalMode && onSelectPerson) { 
+          onSelectPerson(pessoa); 
+          return; 
+      } 
+      setSelectedPerson(pessoa); 
+  };
+
+  const handleEditFromDetails = () => { if(!selectedPerson) return; if(!canCreate) { if(onNotification) onNotification('error', 'Sem permissão para editar.'); return; } setNome(selectedPerson.nome || ''); setSobrenome(selectedPerson.sobrenome || ''); setEmail(selectedPerson.email || ''); setTelefone(formatPhone(selectedPerson.telefone || '')); setCep(selectedPerson.cep || ''); setLogradouro(selectedPerson.logradouro || ''); setNumero(selectedPerson.numero || ''); setComplemento(selectedPerson.complemento || ''); setBairro(selectedPerson.bairro || ''); setCidade(selectedPerson.cidade || ''); setEstado(selectedPerson.estado || ''); setExistingPerson(selectedPerson); setIsEditing(true); setViewMode('form'); setSelectedPerson(null); };
   const handlePhoneBlur = async () => { if (isEditing) return; const cleanPhone = stripNonDigits(telefone); if (!cleanPhone) return; if (cleanPhone.length < 10) { setFormError('Telefone inválido'); return; } setIsLoadingSearch(true); try { if (isSupabaseConfigured() && supabase) { const { data } = await supabase.from('citizens').select('*').eq('telefone', cleanPhone).maybeSingle(); if (data) { setExistingPerson(data as Pessoa); if(onNotification) onNotification('error', 'Este telefone já possui cadastro.'); } } } catch (error) { console.error(error); } finally { setIsLoadingSearch(false); } };
   const handleCepBlur = async () => { const cleanCep = cep.replace(/\D/g, ''); if (cleanCep.length !== 8) return; setIsLoadingCep(true); try { const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`); const data = await response.json(); if (!data.erro) { setLogradouro(data.logradouro); setBairro(data.bairro); setCidade(data.localidade); setEstado(data.uf); } } catch (error) { console.error(error); } finally { setIsLoadingCep(false); } };
   
-  // Email Autocomplete Logic
-  const handleEmailChange = (val: string) => {
-      setEmail(val);
-      if (!val) {
-          setEmailSuggestions([]);
-          return;
-      }
-      const providers = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com.br', 'icloud.com'];
-      if (providers.some(p => val.endsWith('@' + p))) {
-          setEmailSuggestions([]);
-          return;
-      }
-      if (!val.includes('@')) {
-          setEmailSuggestions(providers.map(p => `${val}@${p}`));
-      } else {
-          const [user, domainPart] = val.split('@');
-          const matches = providers.filter(p => p.startsWith(domainPart));
-          if (matches.length > 0) {
-              setEmailSuggestions(matches.map(p => `${user}@${p}`));
-          } else {
-              setEmailSuggestions([]);
-          }
-      }
-  };
+  const handleEmailChange = (val: string) => { setEmail(val); if (!val) { setEmailSuggestions([]); return; } const providers = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com.br', 'icloud.com']; if (providers.some(p => val.endsWith('@' + p))) { setEmailSuggestions([]); return; } if (!val.includes('@')) { setEmailSuggestions(providers.map(p => `${val}@${p}`)); } else { const [user, domainPart] = val.split('@'); const matches = providers.filter(p => p.startsWith(domainPart)); if (matches.length > 0) { setEmailSuggestions(matches.map(p => `${user}@${p}`)); } else { setEmailSuggestions([]); } } };
+  const selectEmailSuggestion = (suggestion: string) => { setEmail(suggestion); setEmailSuggestions([]); };
 
-  const selectEmailSuggestion = (suggestion: string) => {
-      setEmail(suggestion);
-      setEmailSuggestions([]);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); const cleanPhone = telefone ? stripNonDigits(telefone) : null; if (!cleanPhone) { setFormError('É necessário informar o Telefone.'); if(onNotification) onNotification('error', 'Informe o Telefone.'); return; } setIsSaving(true); const pessoaData: any = { nome, sobrenome, email: email || null, telefone: cleanPhone, cep: cep.replace(/\D/g, ''), logradouro, numero, complemento: complemento || null, bairro, cidade, estado: estado.substring(0, 2).toUpperCase() }; try { if (isSupabaseConfigured() && supabase) { let resultData: Pessoa; if (isEditing && existingPerson?.id) { const { data, error } = await supabase.from('citizens').update(pessoaData).eq('id', existingPerson.id).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Dados atualizados!'); } else { const { data, error } = await supabase.from('citizens').insert(pessoaData).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Cidadão cadastrado!'); } if (onPersonUpdate) onPersonUpdate(); const updatedList = isEditing ? peopleList.map(p => p.id === resultData.id ? resultData : p) : [resultData, ...peopleList]; setPeopleList(updatedList); if (isModalMode && onSelectPerson) { onSelectPerson(resultData); } else { setTimeout(() => { setSelectedPerson(resultData); setViewMode('details'); setIsEditing(false); }, 1500); } } else { if(onNotification) onNotification('error', 'Erro de conexão.'); } } catch (error: any) { if(onNotification) onNotification('error', `Erro: ${error.message}`); } finally { setIsSaving(false); } };
+  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); const cleanPhone = telefone ? stripNonDigits(telefone) : null; if (!cleanPhone) { setFormError('É necessário informar o Telefone.'); if(onNotification) onNotification('error', 'Informe o Telefone.'); return; } setIsSaving(true); const pessoaData: any = { nome, sobrenome, email: email || null, telefone: cleanPhone, cep: cep.replace(/\D/g, ''), logradouro, numero, complemento: complemento || null, bairro, cidade, estado: estado.substring(0, 2).toUpperCase() }; try { if (isSupabaseConfigured() && supabase) { let resultData: Pessoa; if (isEditing && existingPerson?.id) { const { data, error } = await supabase.from('citizens').update(pessoaData).eq('id', existingPerson.id).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Dados atualizados!'); } else { const { data, error } = await supabase.from('citizens').insert(pessoaData).select().single(); if (error) throw error; resultData = data; if(onNotification) onNotification('success', 'Cidadão cadastrado!'); } if (onPersonUpdate) onPersonUpdate(); const updatedList = isEditing ? peopleList.map(p => p.id === resultData.id ? resultData : p) : [resultData, ...peopleList]; setPeopleList(updatedList); if (isModalMode && onSelectPerson) { onSelectPerson(resultData); } else { setViewMode('list'); setIsEditing(false); } } else { if(onNotification) onNotification('error', 'Erro de conexão.'); } } catch (error: any) { if(onNotification) onNotification('error', `Erro: ${error.message}`); } finally { setIsSaving(false); } };
   
   const filteredPeople = useMemo(() => { 
       return peopleList.filter(p => { 
@@ -136,14 +111,9 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
           const fullName = `${p.nome} ${p.sobrenome}`.toLowerCase(); 
           const phoneClean = p.telefone ? p.telefone.replace(/\D/g, '') : ''; 
           const searchClean = searchTerm.replace(/\D/g, ''); 
-          
           const matchesSearch = fullName.includes(searchLower) || (searchClean.length > 3 && phoneClean.includes(searchClean)) || (p.email && p.email.toLowerCase().includes(searchLower)); 
-          
           let matchesFilter = true;
-          if (filterHasDemands) {
-              matchesFilter = demands.some(d => d.citizenId === p.id);
-          }
-
+          if (filterHasDemands) { matchesFilter = demands.some(d => d.citizenId === p.id); }
           return matchesSearch && matchesFilter;
       }); 
   }, [peopleList, searchTerm, filterHasDemands, demands]);
@@ -153,43 +123,8 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
   const totalPages = Math.ceil(filteredPeople.length / itemsPerPage);
   const currentPeople = filteredPeople.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const handleExport = () => { const headers = ['Nome', 'Sobrenome', 'Telefone', 'Email', 'Logradouro', 'Número', 'Bairro', 'Cidade', 'UF', 'CEP', 'Data Cadastro']; const rows = filteredPeople.map(p => [`"${p.nome}"`, `"${p.sobrenome}"`, p.telefone || '', p.email || '', `"${p.logradouro}"`, p.numero, `"${p.bairro}"`, `"${p.cidade}"`, p.estado, p.cep, p.created_at ? new Date(p.created_at).toLocaleDateString() : '']); downloadCSV(rows, headers, 'Cidadaos'); };
-  const mapPessoaToCitizen = (p: Pessoa): Citizen => ({ id: p.id || 'temp', cpf: p.cpf, name: `${p.nome} ${p.sobrenome}`, email: p.email || '', phone: p.telefone || '', createdAt: p.created_at, logradouro: p.logradouro, numero: p.numero, complemento: p.complemento || undefined, bairro: p.bairro, cep: p.cep, cidade: p.cidade, estado: p.estado });
-
-  const handleMapClick = (person: Pessoa) => {
-      // Force navigation to map view with this citizen selected
-      if (!person.lat || !person.lon) {
-          if (onNotification) onNotification('error', 'Localização não definida. Aguarde a busca ou insira um endereço válido.');
-          return;
-      }
-      const event = new CustomEvent('navigate-to-map', { 
-          detail: { 
-              citizenId: person.id,
-              lat: person.lat,
-              lon: person.lon
-          } 
-      });
-      window.dispatchEvent(event);
-  };
-
-  const handleLocationUpdate = (lat: number, lon: number) => {
-      if (selectedPerson) {
-          const updated = { ...selectedPerson, lat, lon };
-          setSelectedPerson(updated);
-          // Also update the list so if we go back, it's there
-          setPeopleList(prev => prev.map(p => p.id === updated.id ? updated : p));
-      }
-      if (onPersonUpdate) onPersonUpdate(); // Trigger global refresh
-  };
-
-  const getFullAddress = (p: Pessoa) => {
-      const parts = [
-          p.logradouro,
-          p.numero ? `Nº ${p.numero}` : null,
-          p.bairro,
-          p.cidade && p.estado ? `${p.cidade} - ${p.estado}` : p.cidade
-      ].filter(Boolean);
-      return parts.join(', ');
-  };
+  
+  const mapPessoaToCitizen = (p: Pessoa): Citizen => ({ id: p.id || 'temp', cpf: p.cpf, name: `${p.nome} ${p.sobrenome}`, email: p.email || '', phone: p.telefone || '', createdAt: p.created_at, logradouro: p.logradouro, numero: p.numero, complemento: p.complemento || undefined, bairro: p.bairro, cep: p.cep, cidade: p.cidade, estado: p.estado, lat: p.lat, lon: p.lon });
 
   return (
     <div className={`flex flex-col gap-4 animate-in slide-in-from-right duration-500 ${isModalMode ? 'p-0' : ''} relative w-full min-w-0 pb-20 md:pb-0`}>
@@ -201,11 +136,8 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                       <div> 
                           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3"> 
                               <Users className="w-8 h-8 text-brand-600 dark:text-brand-400" /> 
-                              {viewMode === 'details' ? `${selectedPerson?.nome} ${selectedPerson?.sobrenome?.split(' ')[0]}` : 'Gestão de Cidadãos'} 
+                              Gestão de Cidadãos
                           </h1> 
-                          <p className="text-slate-500 dark:text-blue-200/50 mt-1 font-medium hidden sm:block"> 
-                              {viewMode === 'list' && 'Base de contatos unificada.'} 
-                          </p> 
                       </div> 
                   )} 
               </div> 
@@ -253,21 +185,6 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                                 <UserPlus className="w-5 h-5" /> <span className="whitespace-nowrap">Novo Cidadão</span> 
                             </button> 
                         )} 
-                        
-                        {viewMode === 'details' && selectedPerson && !isModalMode && ( 
-                            <div className="flex gap-2"> 
-                                {canCreate && ( 
-                                    <button onClick={handleEditFromDetails} className="px-4 py-2.5 bg-slate-100 dark:bg-white/10 text-slate-700 dark:text-white rounded-xl font-bold border border-slate-200 dark:border-white/5 flex items-center gap-2 hover:bg-slate-200 transition-colors active:scale-95 duration-200 h-11"> 
-                                        <Edit3 className="w-4 h-4" /> <span className="hidden sm:inline">Editar</span> 
-                                    </button> 
-                                )} 
-                                {onCreateDemand && ( 
-                                    <button onClick={() => onCreateDemand(selectedPerson.id || '')} className="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg transition-all flex items-center gap-2 active:scale-95 duration-200 h-11"> 
-                                        <PlusCircle className="w-4 h-4" /> <span className="hidden sm:inline">Nova Demanda</span> 
-                                    </button> 
-                                )} 
-                            </div> 
-                        )} 
                   </div>
               </div> 
           </div> 
@@ -297,7 +214,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                                             <p className="font-bold text-slate-900 dark:text-white truncate text-base">{pessoa.nome} {pessoa.sobrenome}</p> 
                                             <div className="flex flex-col gap-0.5 text-xs text-slate-500 dark:text-white/50 mt-0.5"> 
                                                 <span className="font-mono">{pessoa.telefone ? formatPhone(pessoa.telefone) : 'Sem Telefone'}</span> 
-                                                {pessoa.bairro && <span className="truncate flex items-center gap-1"><MapPin className="w-3 h-3" /> {pessoa.bairro}</span>} 
+                                                <span className="truncate flex items-center gap-1">{pessoa.bairro || 'Sem Bairro'}</span>
                                             </div> 
                                         </div> 
                                     </div> 
@@ -310,88 +227,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                   </div>
               </div>
           )}
-          {viewMode === 'details' && selectedPerson && !isModalMode && (
-              <div className="w-full">
-                  <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
-                    <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 relative overflow-hidden"> 
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-400 to-blue-600"></div> 
-                        <div className="flex flex-col md:flex-row gap-6 items-center md:items-start text-center md:text-left"> 
-                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-white dark:bg-slate-800 border-4 border-slate-100 dark:border-white/5 shadow-xl flex items-center justify-center shrink-0"> 
-                                <span className="text-3xl md:text-4xl font-bold text-brand-600 dark:text-brand-400">{selectedPerson.nome.charAt(0)}</span> 
-                            </div> 
-                            <div className="flex-1"> 
-                                <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">{selectedPerson.nome} {selectedPerson.sobrenome}</h2> 
-                                <div className="flex flex-wrap gap-3 mt-4 justify-center md:justify-start"> 
-                                    {selectedPerson.telefone && <div className="px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 text-sm font-medium flex items-center gap-2 border border-green-200 dark:border-green-500/20"><Phone className="w-3.5 h-3.5" /> {formatPhone(selectedPerson.telefone)}</div>} 
-                                    {selectedPerson.email && <div className="px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 text-sm font-medium flex items-center gap-2 border border-blue-200 dark:border-blue-500/20"><Mail className="w-3.5 h-3.5" /> {selectedPerson.email}</div>} 
-                                </div> 
-                            </div> 
-                        </div> 
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Address and Map Section */}
-                        <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10">
-                            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 mb-4">
-                                <MapPin className="w-4 h-4" /> Endereço & Localização
-                            </h3>
-                            
-                            <div className="space-y-4">
-                                <div className="flex flex-col gap-1.5 p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
-                                    {selectedPerson.logradouro ? (
-                                        <>
-                                            <p className="font-bold text-slate-800 dark:text-white">{selectedPerson.logradouro}, {selectedPerson.numero}</p>
-                                            {selectedPerson.complemento && <p className="text-xs text-slate-500 dark:text-white/50">{selectedPerson.complemento}</p>}
-                                            <p className="text-sm text-slate-600 dark:text-white/70">{selectedPerson.bairro}</p>
-                                            <p className="text-xs text-slate-400 dark:text-white/40">{selectedPerson.cidade} - {selectedPerson.estado} • {selectedPerson.cep}</p>
-                                        </>
-                                    ) : (
-                                        <p className="text-slate-400 dark:text-white/30 italic text-sm text-center">Endereço não cadastrado.</p>
-                                    )}
-                                </div>
-
-                                <DemandMiniMap
-                                    entityId={selectedPerson.id}
-                                    tableName="citizens"
-                                    lat={selectedPerson.lat}
-                                    lon={selectedPerson.lon}
-                                    address={getFullAddress(selectedPerson)}
-                                    onClick={() => handleMapClick(selectedPerson)}
-                                    onLocationUpdate={(lat, lon) => handleLocationUpdate(lat, lon)}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Recent History Placeholder or Demands List */}
-                        <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 flex flex-col">
-                             <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 mb-4">
-                                <BarChart3 className="w-4 h-4" /> Histórico Recente
-                            </h3>
-                            <div className="flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
-                                {personDemands.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {personDemands.slice(0, 5).map(d => (
-                                            <div key={d.id} className="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 flex items-start justify-between cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 transition-colors" onClick={() => setViewingHistoryDemand(d)}>
-                                                <div>
-                                                    <p className="font-bold text-slate-800 dark:text-white text-sm line-clamp-1">{d.title}</p>
-                                                    <p className="text-xs text-slate-500 dark:text-white/50">{new Date(d.createdAt).toLocaleDateString()}</p>
-                                                </div>
-                                                <span className={`text-[10px] px-2 py-1 rounded-md font-bold uppercase ${d.status === 'Concluído' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>{d.status}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-white/30 py-8">
-                                        <p className="text-sm italic">Nenhuma demanda registrada.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                  </div>
-              </div>
-          )}
+          
           {viewMode === 'form' && (
               <div className="w-full">
                   <div className="glass-panel p-4 md:p-8 rounded-3xl border border-slate-200 dark:border-white/10 max-w-3xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 mb-20 md:mb-0">
@@ -405,24 +241,11 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                                     <div><label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Telefone (Obrigatório)</label><input type="text" value={telefone} onChange={e => setTelefone(formatPhone(e.target.value))} onBlur={handlePhoneBlur} className={`w-full p-3 rounded-xl border ${formError ? 'border-red-500' : 'border-slate-300 dark:border-white/10'} glass-input outline-none focus:border-brand-500`} placeholder="(00) 00000-0000" />{formError && <p className="text-xs text-red-500 mt-1">{formError}</p>}</div> 
                                     <div className="relative">
                                         <label className="block text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-1">Email (Opcional)</label>
-                                        <input 
-                                            type="email" 
-                                            value={email} 
-                                            onChange={e => handleEmailChange(e.target.value)} 
-                                            className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" 
-                                            placeholder="exemplo@email.com" 
-                                            autoComplete="off"
-                                        />
-                                        {/* Suggestions Dropdown */}
+                                        <input type="email" value={email} onChange={e => handleEmailChange(e.target.value)} className="w-full p-3 rounded-xl border border-slate-300 dark:border-white/10 glass-input outline-none focus:border-brand-500" placeholder="exemplo@email.com" autoComplete="off" />
                                         {emailSuggestions.length > 0 && (
                                             <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl shadow-lg z-50 overflow-hidden animate-in fade-in zoom-in-95">
                                                 {emailSuggestions.map(suggestion => (
-                                                    <button 
-                                                        key={suggestion} 
-                                                        type="button"
-                                                        onClick={() => selectEmailSuggestion(suggestion)}
-                                                        className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
-                                                    >
+                                                    <button key={suggestion} type="button" onClick={() => selectEmailSuggestion(suggestion)} className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/10 transition-colors">
                                                         {suggestion}
                                                     </button>
                                                 ))}
@@ -482,7 +305,17 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
               </div>
           )}
       </div>
-      {viewingHistoryDemand && ( <DemandDetailsModal demand={viewingHistoryDemand} citizen={selectedPerson ? mapPessoaToCitizen(selectedPerson) : null} onClose={() => setViewingHistoryDemand(null)} onEdit={(d) => { setViewingHistoryDemand(null); if(onEditDemand) onEditDemand(d); }} onUpdateStatus={(id, status) => { if(onUpdateStatus) onUpdateStatus(id, status); setPersonDemands(prev => prev.map(p => p.id === id ? { ...p, status } : p)); setViewingHistoryDemand(prev => prev ? { ...prev, status } : null); }} onInteractionUpdate={onInteractionUpdate} onNotification={onNotification} /> )}
+      
+      {/* Citizen Details Modal */}
+      {selectedPerson && !isModalMode && (
+          <CitizenDetailsModal 
+              citizen={mapPessoaToCitizen(selectedPerson)}
+              onClose={() => setSelectedPerson(null)}
+              onEdit={handleEditFromDetails}
+              onCreateDemand={() => onCreateDemand && onCreateDemand(selectedPerson.id || '')}
+              onNotification={onNotification}
+          />
+      )}
     </div>
   );
 };

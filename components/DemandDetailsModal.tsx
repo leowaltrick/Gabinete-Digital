@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Demand, Citizen, DemandStatus, DemandPriority, DemandInteraction } from '../types';
-import { X, Calendar, MapPin, MessageCircle, Clock, Edit3, FileText, CheckSquare, Send, Trash2, Plus, MessageSquare, Check, ChevronLeft, ChevronRight, Tag, ExternalLink, Mail, Phone } from 'lucide-react';
+import { X, Calendar, MapPin, Clock, Edit3, FileText, CheckSquare, Send, Trash2, Plus, MessageSquare, Check, ChevronLeft, ChevronRight, Tag, ExternalLink, Mail, Phone, MessageCircle } from 'lucide-react';
 import { formatDate, formatPhone } from '../utils/cpfValidation';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import DemandMiniMap from './DemandMiniMap';
@@ -288,10 +288,18 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
   };
 
   const handleMapClick = () => {
-      // Force navigation to map view with this demand selected
-      const event = new CustomEvent('navigate-to-map', { detail: { demandId: demand.id } });
-      window.dispatchEvent(event);
-      onClose();
+      // Use setTimeout to ensure the state update doesn't conflict with unmounting
+      setTimeout(() => {
+          const event = new CustomEvent('navigate-to-map', { 
+              detail: { 
+                  demandId: demand.id,
+                  lat: demand.lat,
+                  lon: demand.lon
+              } 
+          });
+          window.dispatchEvent(event);
+      }, 0);
+      onClose(); // Close modal immediately
   };
 
   // Construct full address for geocoding fallback
@@ -301,7 +309,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center sm:p-4">
-        {/* Backdrop - Updated to darker blur style */}
+        {/* Backdrop */}
         <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" 
             onClick={onClose}

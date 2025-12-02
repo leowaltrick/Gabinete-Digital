@@ -5,13 +5,14 @@ import KanbanBoard from './KanbanBoard';
 import CalendarPage from './CalendarPage';
 import DemandTracker from './DemandTracker';
 import MapVisualizer from './MapVisualizer';
-import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon } from 'lucide-react';
+import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon, Globe } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import FilterBar from './FilterBar'; 
 import DashboardFilter from './DashboardFilter';
 import StatCard from './StatCard';
 import SegmentedControl from './SegmentedControl';
 import DemandDetailsModal from './DemandDetailsModal';
+import CitizenDetailsModal from './CitizenDetailsModal';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -64,8 +65,11 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   const [notices, setNotices] = useState<Notice[]>([]);
   const [timeRange, setTimeRange] = useState('30'); 
   const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+  
+  // Also track selected citizen for map view details
+  const [selectedCitizenForMap, setSelectedCitizenForMap] = useState<Citizen | null>(null);
 
-  const isDedicatedMapMode = initialViewMode === 'map';
+  const isDedicatedMapMode = viewMode === 'map'; // Changed to track current viewMode
 
   const kpiStats = useMemo(() => {
         const total = demands.length;
@@ -87,20 +91,15 @@ const DemandsView: React.FC<DemandsViewProps> = ({
     if (initialSelectionId) {
         // If coming from dashboard with a selection, ensure we are in a view that supports it
         // and set the selected ID to open the modal
-        if (!isDedicatedMapMode) {
-             // We can stay in current viewMode or default to list, but we must open the modal
-             // If we force 'list', it feels like a redirect. Let's just open the modal on top of whatever view.
-             // But if the view was 'dashboard' (which isn't a valid viewMode here), it defaults to initialViewMode.
-        }
         setSelectedDemandId(initialSelectionId);
     }
   }, [initialSelectionId, isDedicatedMapMode]);
 
   useEffect(() => {
-      if (initialViewMode && !isDedicatedMapMode) {
+      if (initialViewMode) {
           setViewMode(initialViewMode);
       }
-  }, [initialViewMode, isDedicatedMapMode]);
+  }, [initialViewMode]);
 
   useEffect(() => {
       if (initialMapViewMode && isDedicatedMapMode) {
@@ -194,184 +193,162 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   const currentStatus = filters?.status && filters.status.length === 1 ? filters.status[0] : 'all';
   const currentPriority = filters?.priority && filters.priority.length === 1 ? filters.priority[0] : 'all';
 
-  return (
-    <div className={`flex flex-col animate-in slide-in-from-right duration-500 ${isDedicatedMapMode ? 'h-full' : 'gap-4'}`}>
-      
-      {!isDedicatedMapMode && (
-        <div className="shrink-0 flex flex-col gap-4">
+  const renderHeader = () => (
+      <div className="shrink-0 flex flex-col gap-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                        <LayoutList className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                        Gestão de Demandas
+                        {isDedicatedMapMode ? <MapIcon className="w-8 h-8 text-brand-600 dark:text-brand-400" /> : <LayoutList className="w-8 h-8 text-brand-600 dark:text-brand-400" />}
+                        {isDedicatedMapMode ? 'Mapa Geral' : 'Gestão de Demandas'}
                     </h1>
-                    <p className="text-slate-500 dark:text-blue-200/50 mt-1 font-medium hidden sm:block">
-                        {viewMode === 'list' ? 'Controle detalhado e histórico de ocorrências.'
-                        : viewMode === 'board' ? 'Fluxo de trabalho visual por status.'
-                        : 'Calendário de prazos e vencimentos.'}
-                    </p>
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <div className="hidden md:flex w-[280px]">
-                        <SegmentedControl 
-                            value={viewMode}
-                            onChange={setViewMode}
-                            options={[
-                                { value: 'list', label: 'Lista', icon: List },
-                                { value: 'board', label: 'Quadro', icon: Kanban },
-                                { value: 'calendar', label: 'Data', icon: CalendarRange },
-                            ]}
-                        />
-                    </div>
+                    {!isDedicatedMapMode && (
+                        <div className="hidden md:flex w-[280px]">
+                            <SegmentedControl 
+                                value={viewMode}
+                                onChange={setViewMode}
+                                options={[
+                                    { value: 'list', label: 'Lista', icon: List },
+                                    { value: 'board', label: 'Quadro', icon: Kanban },
+                                    { value: 'calendar', label: 'Data', icon: CalendarRange },
+                                ]}
+                            />
+                        </div>
+                    )}
 
-                    <button onClick={onCreateDemand} className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 h-11">
-                        <PlusCircle className="w-5 h-5" /> <span className="whitespace-nowrap">Nova Demanda</span>
-                    </button>
+                    {!isDedicatedMapMode && (
+                        <button onClick={onCreateDemand} className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 h-11">
+                            <PlusCircle className="w-5 h-5" />
+                            <span className="whitespace-nowrap">Nova Demanda</span>
+                        </button>
+                    )}
                 </div>
             </div>
-
-            <div className="md:hidden flex overflow-x-auto gap-2 pb-2 scrollbar-none snap-x -mx-4 px-4 bg-slate-50 dark:bg-[#020617] z-20 pt-2 border-b border-slate-200 dark:border-white/5">
-                {[
-                    { id: 'list', label: 'Lista', icon: List },
-                    { id: 'board', label: 'Quadro', icon: Kanban },
-                    { id: 'calendar', label: 'Calendário', icon: CalendarRange }
-                ].map((tab) => {
-                    const isActive = viewMode === tab.id;
-                    const Icon = tab.icon;
-                    return (
-                        <button
-                            key={tab.id}
-                            onClick={() => setViewMode(tab.id as any)}
-                            className={`
-                                flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all snap-start
-                                ${isActive 
-                                    ? 'bg-brand-600 text-white shadow-md shadow-brand-500/30' 
-                                    : 'bg-white dark:bg-white/5 text-slate-500 dark:text-white/60 border border-slate-200 dark:border-white/10'}
-                            `}
-                        >
-                            <Icon className="w-3.5 h-3.5" />
-                            {tab.label}
-                        </button>
-                    )
-                })}
-            </div>
       </div>
-      )}
+  );
+
+  return (
+    <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 relative">
       
-      {filters && setFilters && !isDedicatedMapMode && (
-          <div className="mb-2">
-              <DashboardFilter 
-                  status={currentStatus}
-                  setStatus={handleStatusChange}
-                  priority={currentPriority}
-                  setPriority={handlePriorityChange}
-                  timeRange={timeRange}
-                  setTimeRange={handleTimeChange}
-                  scope="demands"
-                  setScope={() => {}}
-                  showScope={false}
-              />
-          </div>
-      )}
+      {/* Map Mode Layout */}
+      {isDedicatedMapMode ? (
+          <div className="flex flex-col h-full absolute inset-0">
+                {/* Header Section for Map */}
+                <div className="shrink-0 p-4 md:p-6 bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-30 border-b border-slate-200 dark:border-white/10">
+                    {renderHeader()}
+                </div>
+                
+                {/* Filters Section for Map */}
+                {filters && setFilters && (
+                    <div className="shrink-0 px-4 md:px-6 py-3 bg-white/50 dark:bg-black/20 backdrop-blur-sm border-b border-slate-200 dark:border-white/5 z-20">
+                        <FilterBar 
+                            filters={filters} 
+                            setFilters={setFilters} 
+                            users={users} 
+                            isMapMode={true}
+                            mapViewMode={mapViewMode}
+                        />
+                    </div>
+                )}
 
-      {!isDedicatedMapMode && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 shrink-0">
-                <StatCard title="Total Filtrado" value={kpiStats.total} icon={Database} colorClass="bg-blue-500" textClass="text-blue-600 dark:text-blue-400" />
-                <StatCard title="Pendentes" value={kpiStats.pending} icon={Clock} colorClass="bg-slate-500" textClass="text-slate-600 dark:text-slate-400" />
-                <StatCard title="Em Andamento" value={kpiStats.total - kpiStats.pending - kpiStats.completed} icon={Zap} colorClass="bg-amber-500" textClass="text-amber-600 dark:text-amber-400" />
-                <StatCard title="Concluídos" value={kpiStats.completed} icon={CheckCircle2} colorClass="bg-green-500" textClass="text-green-600 dark:text-green-400" />
+                {/* Map Area */}
+                <div className="flex-1 relative w-full min-h-0">
+                    <MapVisualizer 
+                        defaultCenter={defaultLocation}
+                        onViewDemand={(id) => setSelectedDemandId(id)}
+                        preloadedMarkers={mapMarkers}
+                        currentViewMode={mapViewMode}
+                        onChangeViewMode={setMapViewMode}
+                        mapFocus={mapFocus}
+                    />
+                </div>
           </div>
-      )}
+      ) : (
+          /* Standard View Layout */
+          <div className="flex flex-col gap-4 h-full">
+              {renderHeader()}
 
-      {/* MAP MODE FILTER BAR */}
-      {isDedicatedMapMode && filters && setFilters && (
-          <div className="absolute top-0 left-0 right-0 p-4 pt-12 pointer-events-none z-30">
-              <div className="pointer-events-auto max-w-2xl mx-auto">
-                  <FilterBar 
-                    filters={filters} 
-                    setFilters={setFilters} 
-                    users={users} 
-                    isMapMode={true} 
-                    mapViewMode={mapViewMode} // PASS MAP STATE
-                  />
+              {/* Standard Filters */}
+              {filters && setFilters && (
+                  <div className="shrink-0">
+                      <FilterBar 
+                          filters={filters} 
+                          setFilters={setFilters} 
+                          users={users} 
+                          isMapMode={false}
+                      />
+                  </div>
+              )}
+
+              <div className="flex flex-col min-h-0 w-full relative h-full">
+                  
+                  {/* KPI Cards (Hidden in Calendar) */}
+                  {viewMode !== 'calendar' && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 shrink-0">
+                            <StatCard title="Total" value={kpiStats.total} icon={Database} colorClass="bg-blue-500" textClass="text-blue-600 dark:text-blue-400" />
+                            <StatCard title="Pendentes" value={kpiStats.pending} icon={Clock} colorClass="bg-slate-500" textClass="text-slate-600 dark:text-slate-400" />
+                            <StatCard title="Concluídas" value={kpiStats.completed} icon={CheckCircle2} colorClass="bg-green-500" textClass="text-green-600 dark:text-green-400" />
+                            <StatCard title="Alta Prioridade" value={kpiStats.highPriority} icon={Zap} colorClass="bg-red-500" textClass="text-red-600 dark:text-red-400" />
+                        </div>
+                  )}
+
+                  {/* Views */}
+                  <div className="flex-1 min-h-0 w-full relative">
+                        {viewMode === 'list' && (
+                            <DemandTracker 
+                                demands={demands} 
+                                citizens={citizens} 
+                                onUpdateStatus={onUpdateStatus || (() => {})} 
+                                onEdit={onEditDemand} 
+                                onViewDemand={(d) => setSelectedDemandId(d.id)}
+                                initialSelectionId={initialSelectionId}
+                                clearSelection={clearSelection}
+                                onInteractionUpdate={onInteractionUpdate}
+                                onNotification={onNotification}
+                                onViewCitizen={onViewCitizen}
+                            />
+                        )}
+                        {viewMode === 'board' && (
+                            <KanbanBoard 
+                                demands={demands} 
+                                citizens={citizens} 
+                                onViewDemand={(d) => setSelectedDemandId(d.id)} 
+                                onUpdateStatus={onUpdateStatus || (() => {})} 
+                            />
+                        )}
+                        {viewMode === 'calendar' && (
+                            <CalendarPage 
+                                demands={demands} 
+                                interactions={interactions}
+                                notices={notices}
+                                onEditDemand={(d) => setSelectedDemandId(d.id)} 
+                            />
+                        )}
+                  </div>
               </div>
           </div>
       )}
 
-      <div className={`flex-1 flex flex-col min-w-0 w-full relative ${isDedicatedMapMode ? 'h-full' : ''}`}>
-        {viewMode === 'list' && (
-            <DemandTracker 
-                demands={demands} 
-                citizens={citizens} 
-                onUpdateStatus={onUpdateStatus || (() => {})} 
-                onEdit={(d) => {
-                    // List view usually opens details modal first, but if edit requested directly from row actions
-                    onEditDemand(d);
-                }}
-                onInteractionUpdate={onInteractionUpdate}
-                // We pass the function to OPEN the shared modal
-                onViewDemand={(d) => setSelectedDemandId(d.id)}
-                onNotification={onNotification}
-                onViewCitizen={onViewCitizen}
-            />
-        )}
-        {viewMode === 'board' && (
-            <KanbanBoard 
-                demands={demands} 
-                citizens={citizens} 
-                onViewDemand={(d) => {
-                    setSelectedDemandId(d.id);
-                }}
-                onUpdateStatus={onUpdateStatus || (() => {})}
-            />
-        )}
-        {viewMode === 'calendar' && (
-            <CalendarPage 
-                demands={demands} 
-                interactions={interactions}
-                notices={notices}
-                onEditDemand={(d) => {
-                    // Calendar usually opens edit/details. Let's open details modal.
-                    setSelectedDemandId(d.id);
-                }}
-            />
-        )}
-        {viewMode === 'map' && (
-            <MapVisualizer
-                demands={demands}
-                citizens={citizens}
-                defaultCenter={defaultLocation}
-                preloadedMarkers={mapMarkers}
-                onViewDemand={(id) => {
-                    setSelectedDemandId(id);
-                }}
-                // PASS AND CONTROL MAP STATE
-                currentViewMode={mapViewMode}
-                onChangeViewMode={setMapViewMode}
-                mapFocus={mapFocus} // Pass map focus logic
-            />
-        )}
-      </div>
-
-      {/* SHARED MODAL FOR ALL VIEWS */}
+      {/* Detail Modal (Shared across views) */}
       {selectedDemandId && (
-        <DemandDetailsModal 
-           demand={demands.find(d => d.id === selectedDemandId)!}
-           citizen={citizens.find(c => c.id === demands.find(d => d.id === selectedDemandId)?.citizenId) || null}
-           onClose={() => {
-               setSelectedDemandId(null);
-               if (clearSelection) clearSelection();
-           }}
-           onEdit={(d) => { setSelectedDemandId(null); onEditDemand(d); }}
-           onUpdateStatus={(id, status) => { if(onUpdateStatus) onUpdateStatus(id, status); }}
-           onInteractionUpdate={onInteractionUpdate}
-           onNavigate={(dir) => handleNavigate(dir)}
-           canNavigatePrev={canNavigatePrev}
-           canNavigateNext={canNavigateNext}
-           onNotification={onNotification}
-           onViewCitizen={onViewCitizen}
-        />
+          <DemandDetailsModal 
+              demand={demands.find(d => d.id === selectedDemandId)!}
+              citizen={citizens.find(c => c.id === demands.find(d => d.id === selectedDemandId)?.citizenId) || null}
+              onClose={() => {
+                  setSelectedDemandId(null);
+                  if (clearSelection) clearSelection();
+              }}
+              onEdit={onEditDemand}
+              onUpdateStatus={onUpdateStatus || (() => {})}
+              onInteractionUpdate={onInteractionUpdate}
+              onNavigate={handleNavigate}
+              canNavigatePrev={canNavigatePrev}
+              canNavigateNext={canNavigateNext}
+              onNotification={onNotification}
+              onViewCitizen={onViewCitizen}
+          />
       )}
     </div>
   );

@@ -380,7 +380,6 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                           <Settings className="w-10 h-10 text-brand-600 dark:text-brand-400" />
                           Configurações
                       </h1>
-                      <p className="text-slate-500 dark:text-blue-200/50 mt-2 font-medium">Preferências e Conta.</p>
                   </div>
 
                   <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 space-y-4 shadow-lg">
@@ -407,7 +406,6 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                     <Settings className="w-8 h-8 text-brand-600 dark:text-brand-400" />
                     Configurações
                 </h1>
-                <p className="text-slate-500 dark:text-blue-200/50 mt-1 font-medium">Controle de acesso, usuários e customização.</p>
             </div>
         </div>
         <div className="w-full md:w-[400px]">
