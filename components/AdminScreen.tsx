@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Role, SystemConfig, ViewState, WeatherLocation, Notice, DashboardWidgetsConfig } from '../types';
-import { Shield, UserPlus, Save, CheckCircle, Loader2, User as UserIcon, Mail, Settings, Users, Lock, Edit2, ChevronRight, Fingerprint, Activity, MapPin, Search, X, Power, LayoutDashboard, Globe, ChevronLeft, Trash2, Megaphone, Plus, Calendar, AlertTriangle, Info, ToggleRight, Sun, Moon, LogOut } from 'lucide-react';
+import { Shield, UserPlus, Save, CheckCircle, Loader2, User as UserIcon, Mail, Settings, Users, Lock, Edit2, ChevronRight, Activity, MapPin, Search, X, Power, LayoutDashboard, Globe, ChevronLeft, Trash2, Megaphone, Plus, Calendar, AlertTriangle, Info, ToggleRight, Sun, Moon, LogOut } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import Pagination from './Pagination';
 import UserDetailsModal from './UserDetailsModal';
@@ -521,7 +522,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                       <h3 className="text-sm font-bold text-slate-500 dark:text-white/50 uppercase tracking-wider mb-4 px-2">Perfis de Acesso</h3>
                       {['administrador', 'chefe_de_gabinete', 'assessor'].map((role) => (
                           <button key={role} onClick={() => setSelectedRoleForConfig(role as Role)} className={`w-full p-4 rounded-xl text-left border transition-all relative overflow-hidden group flex items-center justify-between ${selectedRoleForConfig === role ? 'bg-brand-600 text-white border-brand-500 shadow-md' : 'bg-white dark:bg-white/5 text-slate-600 dark:text-white border-transparent hover:bg-slate-50 dark:hover:bg-white/10'}`}>
-                              <div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${selectedRoleForConfig === role ? 'bg-white/20' : 'bg-slate-100 dark:bg-white/10'}`}><Fingerprint className="w-4 h-4" /></div><span className="font-bold">{formatRole(role)}</span></div>
+                              <div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${selectedRoleForConfig === role ? 'bg-white/20' : 'bg-slate-100 dark:bg-white/10'}`}><Lock className="w-4 h-4" /></div><span className="font-bold">{formatRole(role)}</span></div>
                               {selectedRoleForConfig === role && <ChevronRight className="w-5 h-5 opacity-80" />}
                           </button>
                       ))}
@@ -583,7 +584,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                                   <div className="space-y-3">
                                     <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-white/50 pl-1">Seções Principais</h4>
                                     <div className="divide-y divide-slate-100 dark:divide-white/5 border border-slate-100 dark:border-white/5 rounded-xl bg-slate-50/30 dark:bg-white/5 px-4">
-                                        {[{id: 'showAnalytics', label: 'Gráficos e Indicadores'},{id: 'showTags', label: 'Gráfico de Tags'},{id: 'showRecentActivity', label: 'Atividades Recentes'},{id: 'showUpcomingActivities', label: 'Próximos Prazos'},{id: 'showQuickAccess', label: 'Botão Acesso Rápido (FAB)'}].map((w) => {
+                                        {[{id: 'showAnalytics', label: 'Gráficos e Indicadores'},{id: 'showTags', label: 'Gráfico de Tags'},{id: 'showRecentActivity', label: 'Atividades Recentes'},{id: 'showUpcomingActivities', label: 'Próximos Prazos'}].map((w) => {
                                             const isEnabled = systemConfig[selectedRoleForConfig].dashboardWidgets[w.id as keyof DashboardWidgetsConfig];
                                             return (
                                                 <div key={w.id} className="py-3 flex items-center justify-between"><span className={`text-sm font-medium ${isEnabled ? 'text-slate-700 dark:text-white' : 'text-slate-400'}`}>{w.label}</span><IOSSwitch checked={isEnabled as boolean} onChange={() => toggleWidgetPermission(w.id as keyof DashboardWidgetsConfig)} disabled={isConfigLocked} /></div>

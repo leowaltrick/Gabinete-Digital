@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
 
   return {
-    base: "/Gabinete-Digital/", // <- ESSENCIAL para o GitHub Pages
+    base: "/Gabinete-Digital/", 
 
     server: {
       port: 3000,
@@ -15,8 +15,24 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     resolve: {
       alias: {
-        "@": path.resolve("."),
+        // Correção CRÍTICA: Seus componentes estão na raiz, então @ deve apontar para a raiz, não para src.
+        "@": path.resolve(__dirname, "./"),
       },
     },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: false,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom', 'lucide-react'],
+            maps: ['leaflet', 'react-leaflet', 'maplibre-gl'],
+            db: ['@supabase/supabase-js']
+          }
+        }
+      },
+      chunkSizeWarningLimit: 1500
+    }
   };
 });

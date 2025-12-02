@@ -55,9 +55,7 @@ export interface DashboardWidgetsConfig {
     // Listas Laterais e Inferiores
     showUpcomingActivities: boolean; // Renomeado de showUpcomingDeadlines
     showRecentActivity: boolean;
-    
-    // FAB
-    showQuickAccess: boolean;
+    showQuickAccess?: boolean; // Adicionado para corrigir erro de tipo
 }
 
 export interface RoleConfig {

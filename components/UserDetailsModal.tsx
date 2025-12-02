@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { User, Role } from '../types';
-import { X, User as UserIcon, Mail, Shield, Save, Power, KeyRound, Check, Loader2, AlertCircle } from 'lucide-react';
+import { X, User as UserIcon, Mail, Shield, Save, Power, KeyRound, Check, Loader2, AlertCircle, Lock } from 'lucide-react';
 
 interface UserDetailsModalProps {
   user: any; // System user object from DB
@@ -19,18 +20,28 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
     onToggleStatus,
     onResetPassword
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
+  const isNewUser = !user?.id;
+  const [isEditing, setIsEditing] = useState(isNewUser);
   const [isLoading, setIsLoading] = useState(false);
   
   const [nome, setNome] = useState(user.nome || '');
   const [email, setEmail] = useState(user.email || '');
   const [perfil, setPerfil] = useState<Role>(user.perfil || 'assessor');
 
+  // Reset state when user prop changes (e.g. viewing a different user)
+  useEffect(() => {
+      const newUserState = !user?.id;
+      setIsEditing(newUserState);
+      setNome(user.nome || '');
+      setEmail(user.email || '');
+      setPerfil(user.perfil || 'assessor');
+  }, [user]);
+
   const handleSave = async () => {
       setIsLoading(true);
       try {
           await onSave(user.id, { nome, email, perfil });
-          setIsEditing(false);
+          if (!isNewUser) setIsEditing(false);
       } catch (error) {
           console.error(error);
       } finally {
@@ -50,18 +61,21 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
             <div className="px-6 py-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border border-slate-200 dark:border-white/10 ${!user.ativo ? 'bg-slate-200 text-slate-400' : 'bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400'}`}>
-                        {nome.charAt(0)}
+                        {nome ? nome.charAt(0).toUpperCase() : (isNewUser ? '+' : '?')}
                     </div>
                     <div>
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
-                            {isEditing ? 'Editar Usuário' : user.nome}
+                            {isNewUser ? 'Novo Usuário' : (isEditing ? 'Editar Usuário' : user.nome)}
                         </h2>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${user.ativo ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'}`}>
-                                {user.ativo ? 'Ativo' : 'Inativo'}
-                            </span>
-                            <span className="text-xs text-slate-500 dark:text-white/50">{user.email}</span>
-                        </div>
+                        {!isNewUser && (
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${user.ativo ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'}`}>
+                                    {user.ativo ? 'Ativo' : 'Inativo'}
+                                </span>
+                                <span className="text-xs text-slate-500 dark:text-white/50">{user.email}</span>
+                            </div>
+                        )}
+                        {isNewUser && <span className="text-xs text-slate-500 dark:text-white/50">Preencha os dados abaixo</span>}
                     </div>
                 </div>
                 <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 text-slate-400 dark:text-white/40 transition-colors">
@@ -85,7 +99,8 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                         value={nome} 
                                         onChange={e => setNome(e.target.value)} 
                                         disabled={!isEditing}
-                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 outline-none focus:border-brand-500 disabled:opacity-70 disabled:bg-transparent text-sm font-medium text-slate-900 dark:text-white"
+                                        placeholder="Ex: João Silva"
+                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 outline-none focus:border-brand-500 disabled:opacity-70 disabled:bg-transparent text-sm font-medium text-slate-900 dark:text-white transition-colors"
                                     />
                                 </div>
                             </div>
@@ -98,7 +113,8 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                         value={email} 
                                         onChange={e => setEmail(e.target.value)} 
                                         disabled={!isEditing}
-                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 outline-none focus:border-brand-500 disabled:opacity-70 disabled:bg-transparent text-sm font-medium text-slate-900 dark:text-white"
+                                        placeholder="Ex: joao@gabinete.com"
+                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 outline-none focus:border-brand-500 disabled:opacity-70 disabled:bg-transparent text-sm font-medium text-slate-900 dark:text-white transition-colors"
                                     />
                                 </div>
                             </div>
@@ -118,7 +134,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                                         perfil === role 
                                         ? 'bg-brand-50 border-brand-500 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300 dark:border-brand-500/30' 
                                         : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-600 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/10'
-                                    } ${!isEditing ? 'opacity-80 cursor-default' : 'cursor-pointer'}`}
+                                    } ${!isEditing ? 'opacity-70 cursor-default' : 'cursor-pointer active:scale-[0.98]'}`}
                                  >
                                     <span className="text-sm font-bold">{formatRole(role)}</span>
                                     {perfil === role && <Check className="w-4 h-4" />}
@@ -128,32 +144,64 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                     </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 dark:border-white/5">
-                    <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-4">Ações de Segurança</h4>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                         <button 
-                            onClick={() => onToggleStatus(user)}
-                            className={`flex-1 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-all ${
-                                user.ativo 
-                                ? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:border-red-900/30' 
-                                : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/10 dark:text-green-400 dark:border-green-900/30'
-                            }`}
-                         >
-                            <Power className="w-4 h-4" />
-                            {user.ativo ? 'Desativar Acesso' : 'Reativar Acesso'}
-                         </button>
+                {!isNewUser && (
+                    <div className="pt-6 border-t border-slate-100 dark:border-white/5">
+                        <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-4 flex items-center gap-2">
+                            <Shield className="w-4 h-4" /> Conta e Segurança
+                        </h4>
+                        
+                        <div className="border border-slate-200 dark:border-white/10 rounded-2xl divide-y divide-slate-100 dark:divide-white/5 overflow-hidden bg-white dark:bg-white/5">
+                            {/* Access Row */}
+                            <div className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-2 rounded-xl ${user.ativo ? 'bg-green-100 text-green-600 dark:bg-green-500/20 dark:text-green-400' : 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400'}`}>
+                                        <Power className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">Acesso ao Sistema</p>
+                                        <p className="text-xs text-slate-500 dark:text-white/50">
+                                            {user.ativo ? 'A conta está ativa e pode acessar.' : 'O acesso está bloqueado.'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => onToggleStatus(user)}
+                                    disabled={!isEditing}
+                                    className={`
+                                        relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2
+                                        ${user.ativo ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}
+                                        ${!isEditing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                    `}
+                                >
+                                    <span className={`${user.ativo ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+                                </button>
+                            </div>
 
-                         {onResetPassword && (
-                            <button 
-                                onClick={() => onResetPassword(user)}
-                                className="flex-1 px-4 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-slate-600 dark:text-white/70 hover:bg-slate-50 dark:hover:bg-white/10"
-                            >
-                                <KeyRound className="w-4 h-4" />
-                                Resetar Senha
-                            </button>
-                         )}
+                            {/* Credentials Row */}
+                            {onResetPassword && (
+                                <div className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-2 rounded-xl bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white">
+                                            <KeyRound className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white">Credenciais</p>
+                                            <p className="text-xs text-slate-500 dark:text-white/50">Redefinir senha para o padrão.</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => onResetPassword(user)}
+                                        disabled={!isEditing}
+                                        className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 dark:bg-white/10 dark:text-white hover:bg-slate-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Resetar
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        {!isEditing && <p className="text-[10px] text-slate-400 mt-3 text-center italic flex items-center justify-center gap-1"><AlertCircle className="w-3 h-3" /> Habilite a edição para alterar configurações de segurança.</p>}
                     </div>
-                </div>
+                )}
 
             </div>
 
@@ -162,7 +210,16 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                 {isEditing ? (
                     <>
                         <button 
-                            onClick={() => { setIsEditing(false); setNome(user.nome); setPerfil(user.perfil); setEmail(user.email); }}
+                            onClick={() => { 
+                                if (isNewUser) {
+                                    onClose();
+                                } else {
+                                    setIsEditing(false); 
+                                    setNome(user.nome); 
+                                    setPerfil(user.perfil); 
+                                    setEmail(user.email); 
+                                }
+                            }}
                             className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-200/50 transition-colors"
                         >
                             Cancelar
@@ -170,10 +227,10 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                         <button 
                             onClick={handleSave}
                             disabled={isLoading}
-                            className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 flex items-center gap-2"
+                            className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-500/20 flex items-center gap-2 disabled:opacity-70"
                         >
                             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Salvar Alterações
+                            {isNewUser ? 'Criar Usuário' : 'Salvar Alterações'}
                         </button>
                     </>
                 ) : (
