@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://leowaltrick.github.io/Gabinete-Digital",
+  "homepage": "https://leowaltrick.github.io/Gabinete-Digital/",
   "scripts": {
     "dev": "vite",
     "build": "vite build --emptyOutDir && touch dist/.nojekyll && cp dist/index.html dist/404.html",
