@@ -111,16 +111,10 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
     }
   }, [lat, lon, address, activeId, tableName]); 
 
-  // Simplified click handler
-  const handleClick = (e: React.MouseEvent) => {
-      e.stopPropagation(); // Stop bubbling but allow default
-      onClick();
-  };
-
   // Static placeholder if no coords
   if (!coords && !isLoading) {
       return (
-        <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10 transition-colors" onClick={handleClick}>
+        <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10 transition-colors" onClick={onClick}>
             <MapPin className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs font-bold">Localização não definida</span>
             <span className="text-[10px] opacity-70 mt-1">Clique para buscar</span>
@@ -129,19 +123,11 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   }
 
   return (
-    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer bg-slate-50 dark:bg-white/5" onClick={handleClick}>
+    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-50 dark:bg-white/5">
       
-      {/* Loading Indicator */}
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 z-[10]">
-            <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
-        </div>
-      )}
-
+      {/* 1. Map Layer (Visuals Only) */}
       {coords && (
-        // KEY FIX: pointer-events-none ensures the click passes through the map 
-        // directly to the parent div's onClick handler, preventing Leaflet from hijacking it.
-        <div className="h-full w-full pointer-events-none">
+        <div className="h-full w-full z-0">
             {/* @ts-ignore: Suppress strict type check for MapContainer props */}
             <MapContainer 
                 key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
@@ -165,12 +151,29 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
             </MapContainer>
         </div>
       )}
+
+      {/* 2. Loading Indicator */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 z-[10] pointer-events-none">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
+        </div>
+      )}
       
-      {/* Hover Overlay */}
+      {/* 3. Click Overlay - THE FIX */}
+      {/* This transparent div sits on top of everything and captures the click event */}
       {!isLoading && (
-        <div className="absolute top-2 right-2 z-[400] opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-            <div className="bg-white/90 dark:bg-black/90 p-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white">
-                <Maximize2 className="w-4 h-4" />
+        <div 
+            onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClick();
+            }}
+            className="absolute inset-0 z-[500] cursor-pointer bg-transparent transition-all duration-300 hover:bg-black/5 flex items-center justify-center"
+            title="Expandir Mapa"
+        >
+            {/* Hover Icon */}
+            <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100 bg-white/90 dark:bg-black/90 p-2.5 rounded-full shadow-lg border border-slate-200 dark:border-white/10 text-brand-600 dark:text-white">
+                <Maximize2 className="w-5 h-5" />
             </div>
         </div>
       )}
