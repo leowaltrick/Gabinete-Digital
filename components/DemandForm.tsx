@@ -4,6 +4,7 @@ import { Citizen, DemandLevel, DemandStatus, DemandPriority, Pessoa, DemandType 
 import { Search, Save, MapPin, AlertCircle, Loader2, Phone, X, List, PlusCircle, ArrowLeft, User, FileText, Calendar, Mail, CloudOff, Check } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { formatPhone, stripNonDigits, formatCEP } from '../utils/cpfValidation';
+import { getCoordinates } from '../utils/geocoding'; // Import helper
 import PeopleManager from './PeopleManager';
 
 interface DemandFormProps {
@@ -99,7 +100,9 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
     bairro: pessoa.bairro, 
     cep: pessoa.cep, 
     cidade: pessoa.cidade, 
-    estado: pessoa.estado
+    estado: pessoa.estado,
+    lat: pessoa.lat,
+    lon: pessoa.lon
   });
 
   const fillAddressFromCitizen = (citizen: Citizen) => {
@@ -214,6 +217,20 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
 
     try {
         let finalCitizenId = foundCitizen?.id;
+        
+        // --- GEOCODING LOGIC ---
+        // Construct address from form fields
+        const fullAddress = `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${estado}`;
+        let coords = { lat: 0, lon: 0 };
+        
+        // If citizen already has coords, reuse them unless address changed (simplified check: reuse if existing)
+        if (foundCitizen && foundCitizen.lat && foundCitizen.lon) {
+             coords = { lat: foundCitizen.lat, lon: foundCitizen.lon };
+        } else {
+             // Fetch new coordinates
+             const fetched = await getCoordinates(fullAddress);
+             if (fetched) coords = fetched;
+        }
 
         // 1. Create Citizen if needed
         if (isNewCitizen && !finalCitizenId) {
@@ -223,7 +240,6 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
            if (!navigator.onLine) {
                // Offline: Generate Temp ID
                finalCitizenId = crypto.randomUUID(); 
-               // In a real PWA we would store this citizen in a sync queue too
            } else if (isSupabaseConfigured() && supabase) {
                // Check if phone exists to avoid unique constraint error
                const { data: existing } = await supabase.from('citizens').select('id').eq('telefone', cleanPhone).maybeSingle();
@@ -236,12 +252,14 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
                        sobrenome: newSobrenome || '.',
                        telefone: cleanPhone,
                        email: newEmail || null,
-                       cep: cleanCep, // Use clean CEP
+                       cep: cleanCep, 
                        logradouro: logradouro || null,
                        numero: numero || null,
                        bairro: bairro || null,
                        cidade: cidade || null,
-                       estado: estado || null
+                       estado: estado || null,
+                       lat: coords.lat || null, // Save calculated coords
+                       lon: coords.lon || null
                    }).select().single();
                    
                    if (error) throw error;
@@ -261,9 +279,11 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
             priority,
             type: demandType,
             deadline: deadline || null, 
-            citizen_id: finalCitizenId, // Ensure we send UUID
+            citizen_id: finalCitizenId,
             tags,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            lat: coords.lat || null, // Save coordinates to demand too
+            lon: coords.lon || null
         };
 
         if (!navigator.onLine) {

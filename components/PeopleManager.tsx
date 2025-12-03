@@ -5,6 +5,7 @@ import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLe
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits, formatCEP } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
+import { getCoordinates } from '../utils/geocoding'; // Import helper
 import Pagination from './Pagination';
 import StatCard from './StatCard';
 import CitizenDetailsModal from './CitizenDetailsModal';
@@ -24,9 +25,26 @@ interface PeopleManagerProps {
   permissions?: RoleConfig;
   onClearSelection?: () => void;
   demands?: Demand[];
+  onMapFocus?: (lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => void;
 }
 
-const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSelectPerson, initialSearchTerm, initialMode = 'list', onCreateDemand, onEditDemand, onUpdateStatus, onModeChange, onInteractionUpdate, onPersonUpdate, onNotification, permissions, onClearSelection, demands = [] }) => {
+const PeopleManager: React.FC<PeopleManagerProps> = ({ 
+    isModalMode = false, 
+    onSelectPerson, 
+    initialSearchTerm, 
+    initialMode = 'list', 
+    onCreateDemand, 
+    onEditDemand, 
+    onUpdateStatus, 
+    onModeChange, 
+    onInteractionUpdate, 
+    onPersonUpdate, 
+    onNotification, 
+    permissions, 
+    onClearSelection, 
+    demands = [],
+    onMapFocus 
+}) => {
   const [viewMode, setViewMode] = useState<'list' | 'details' | 'form'>('list');
   const [selectedPerson, setSelectedPerson] = useState<Pessoa | null>(null);
   const [peopleList, setPeopleList] = useState<Pessoa[]>([]);
@@ -139,6 +157,16 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
       
       try { 
           if (isSupabaseConfigured() && supabase) { 
+              // GEOCODING LOGIC
+              const fullAddress = `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${estado}`;
+              let coords = { lat: 0, lon: 0 };
+              
+              // Only fetch if editing address OR new record
+              // Reuse existing coords if just editing name/phone but address same? 
+              // Simplification: Always fetch for now to ensure accuracy or if user fixed a typo in address
+              const fetched = await getCoordinates(fullAddress);
+              if (fetched) coords = fetched;
+
               const payload = { 
                   nome, 
                   sobrenome, 
@@ -151,7 +179,9 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
                   bairro: bairro || null, 
                   cidade: cidade || null, 
                   estado: estado || null,
-                  observacoes: observacoes || null
+                  observacoes: observacoes || null,
+                  lat: coords.lat || (isEditing ? existingPerson?.lat : null), 
+                  lon: coords.lon || (isEditing ? existingPerson?.lon : null)
               }; 
               
               if (isEditing && existingPerson?.id) { 
@@ -211,6 +241,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({ isModalMode = false, onSe
               onSelectDemand={(d) => {
                   if (onEditDemand) onEditDemand(d);
               }}
+              onMapFocus={onMapFocus}
           />
       );
   }
