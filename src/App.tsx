@@ -183,7 +183,6 @@ const App: React.FC = () => {
     } = useOfflineData(currentUser);
 
     // Check for onboarding on load/login
-    // Strictly tied to the `firstLogin` flag set by AuthScreen based on `last_login` DB field
     useEffect(() => {
         if (currentUser && currentUser.firstLogin) {
             const hasSeenOnboarding = localStorage.getItem('geo_onboarding_completed');
@@ -268,10 +267,11 @@ const App: React.FC = () => {
         if (!filters.search) return citizens;
 
         return citizens.filter(c => {
+            const matchesId = c.id.toLowerCase() === searchLower; // Exact match for ID navigation
             const matchesName = c.name.toLowerCase().includes(searchLower);
             const matchesEmail = c.email?.toLowerCase().includes(searchLower);
             const matchesPhone = c.phone?.includes(searchLower);
-            return matchesName || matchesEmail || matchesPhone;
+            return matchesId || matchesName || matchesEmail || matchesPhone;
         });
     }, [citizens, filters.search]);
 
@@ -291,37 +291,27 @@ const App: React.FC = () => {
         return markers;
     }, [filteredDemands, filteredCitizens]);
 
-    // Initial Load
-    useEffect(() => {
-        const handleMapNav = (e: CustomEvent) => {
-            setIsMobileNavVisible(true);
-            setSelectedDemandId(null);
-            setEditingDemand(null);
+    // Handle Map Navigation (Safe Prop Passing)
+    const handleMapFocus = useCallback((lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => {
+        // 1. Clear any open modals to prevent "breaking"
+        setSelectedDemandId(null);
+        setSelectedCitizenId(null);
+        setEditingDemand(null);
+        setIsMobileNavVisible(true);
 
-            // CRITICAL: Clear filters to ensure the target marker is visible on map
-            // If filters are active (e.g. search term "Maria"), clicking "Jose" from another view would hide Jose on map.
-            setFilters({
-                search: '', level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: [], responsibleId: undefined
-            });
-            // Also reset dashboard time range just in case
-            setDashTimeRange('all');
+        // 2. Clear filters to ensure marker is visible, BUT set search if ID is present to isolate the item
+        setFilters({
+            search: id || '', 
+            level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: [], responsibleId: undefined
+        });
+        setDashTimeRange('all');
 
-            if (e.detail?.demandId) {
-                if (e.detail.lat && e.detail.lon) {
-                    setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
-                }
-                setInitialMapViewMode('demands');
-                setView('map'); 
-            } else if (e.detail?.citizenId) {
-                if (e.detail.lat && e.detail.lon) {
-                    setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
-                }
-                setInitialMapViewMode('citizens');
-                setView('map');
-            }
-        };
-        window.addEventListener('navigate-to-map' as any, handleMapNav);
-        return () => window.removeEventListener('navigate-to-map' as any, handleMapNav);
+        // 3. Set Map State
+        setMapFocus({ lat, lon });
+        setInitialMapViewMode(type);
+        
+        // 4. Switch View
+        setView('map');
     }, []);
 
     // Notification for Sync
@@ -746,6 +736,7 @@ const App: React.FC = () => {
                                             clearSelection={() => setSelectedDemandId(null)}
                                             mapFocus={mapFocus}
                                             initialMapViewMode={initialMapViewMode}
+                                            onMapFocus={handleMapFocus}
                                         />
                                     )}
                                     
@@ -758,7 +749,8 @@ const App: React.FC = () => {
                                             onPersonUpdate={fetchData} 
                                             permissions={currentRoleConfig} 
                                             onModeChange={setPeopleManagerMode} 
-                                            demands={demands} 
+                                            demands={demands}
+                                            onMapFocus={handleMapFocus}
                                         />
                                     )}
                                 </div>

@@ -111,36 +111,34 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
     }
   }, [lat, lon, address, activeId, tableName]); 
 
-  // Don't render map if no coords found and not loading
+  // Simplified click handler
+  const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation(); // Stop bubbling but allow default
+      onClick();
+  };
+
+  // Static placeholder if no coords
   if (!coords && !isLoading) {
       return (
-        <div className="w-full h-full bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 rounded-xl border border-slate-200 dark:border-white/10 min-h-[150px]">
+        <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10 transition-colors" onClick={handleClick}>
             <MapPin className="w-8 h-8 mb-2 opacity-50" />
-            <span className="text-xs">Sem localização GPS</span>
+            <span className="text-xs font-bold">Localização não definida</span>
+            <span className="text-[10px] opacity-70 mt-1">Clique para buscar</span>
         </div>
       );
   }
 
-  const handleClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onClick();
-  };
-
   return (
     <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer bg-slate-50 dark:bg-white/5" onClick={handleClick}>
       
-      {/* Loading Notification (Styled like MapVisualizer) */}
+      {/* Loading Indicator - Simplified */}
       {isLoading && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-4 py-2 rounded-full shadow-xl border border-brand-100 dark:border-white/10 flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
-                <span className="text-xs font-bold text-slate-700 dark:text-white">Carregando mapa...</span>
-            </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 z-[10]">
+            <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
         </div>
       )}
 
-      {coords ? (
+      {coords && (
         <>
             <MapContainer 
                 key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
@@ -163,18 +161,13 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
             {/* Click Capture Layer to ensure onClick always fires */}
             <div className="absolute inset-0 z-[500] bg-transparent" onClick={handleClick} />
         </>
-      ) : (
-          // Placeholder while loading if coords aren't ready yet
-          <div className="w-full h-full bg-slate-100/50 dark:bg-white/5 flex items-center justify-center">
-             {/* Background pattern or subtle animation could go here */}
-          </div>
       )}
       
-      {/* Hover Overlay */}
+      {/* Hover Overlay - Simplified & Always ready for interaction hint */}
       {!isLoading && (
-        <div className="absolute inset-0 bg-brand-900/0 group-hover:bg-brand-900/10 transition-colors z-[600] flex items-center justify-center pointer-events-none">
-            <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 shadow-lg border border-slate-200 dark:border-white/10 flex items-center gap-2">
-                <Maximize2 className="w-3 h-3" /> Ver no Mapa Global
+        <div className="absolute top-2 right-2 z-[400] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <div className="bg-white/90 dark:bg-black/90 p-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white">
+                <Maximize2 className="w-4 h-4" />
             </div>
         </div>
       )}

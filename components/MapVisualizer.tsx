@@ -224,14 +224,24 @@ const CustomControls = ({ zoomIn, zoomOut }: { zoomIn: () => void, zoomOut: () =
     </div>
 );
 
-// Map Controller to handle focus updates
-const MapController = ({ focus }: { focus: { lat: number, lon: number } | null }) => {
+// Map Controller to handle focus updates and auto-zoom
+const MapController = ({ focus, markers }: { focus: { lat: number, lon: number } | null, markers: any[] }) => {
     const map = useMap();
+    
     useEffect(() => {
         if (focus) {
             map.flyTo([focus.lat, focus.lon], 18, { duration: 1.5 });
         }
     }, [focus, map]);
+
+    // Auto-focus on single result (e.g. from ID Search)
+    useEffect(() => {
+        if (markers.length === 1) {
+            const m = markers[0];
+            map.flyTo([m.lat, m.lon], 18, { duration: 1.5 });
+        }
+    }, [markers, map]);
+
     return null;
 }
 
@@ -305,7 +315,7 @@ const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDema
                 <MarkerLayer markers={activeMarkers} onViewDemand={onViewDemand} />
             )}
 
-            <MapController focus={mapFocus || null} />
+            <MapController focus={mapFocus || null} markers={activeMarkers} />
         </MapContainer>
     </div>
   );
