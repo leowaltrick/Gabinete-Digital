@@ -1,6 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronDown, ChevronRight, MapPin, Layers, Users } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, MapPin, Layers, Users, Filter, CheckCircle2, Clock, Zap, AlertCircle, RotateCcw, Calendar, Check } from 'lucide-react';
+import { FilterState, DemandStatus, DemandPriority } from '../types';
 
 interface NeighborhoodListProps {
   items: any[]; // Demands or Citizens
@@ -8,11 +8,22 @@ interface NeighborhoodListProps {
   onSelect: (item: any) => void;
   onFilterNeighborhood: (neighborhood: string | null) => void;
   selectedNeighborhood: string | null;
+  filters?: FilterState;
+  setFilters?: React.Dispatch<React.SetStateAction<FilterState>>;
 }
 
-const NeighborhoodList: React.FC<NeighborhoodListProps> = ({ items, type, onSelect, onFilterNeighborhood, selectedNeighborhood }) => {
+const NeighborhoodList: React.FC<NeighborhoodListProps> = ({ 
+    items, 
+    type, 
+    onSelect, 
+    onFilterNeighborhood, 
+    selectedNeighborhood,
+    filters,
+    setFilters
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedNeighborhoods, setExpandedNeighborhoods] = useState<Record<string, boolean>>({});
+  const [showFilters, setShowFilters] = useState(true);
 
   // Group items by neighborhood
   const groupedItems = useMemo(() => {
@@ -62,13 +73,71 @@ const NeighborhoodList: React.FC<NeighborhoodListProps> = ({ items, type, onSele
       }
   };
 
+  // --- Sidebar Filter Handlers ---
+  const handleToggleStatus = (status: DemandStatus) => {
+      if (!setFilters || !filters) return;
+      const current = filters.status || [];
+      const updated = current.includes(status) ? current.filter(s => s !== status) : [...current, status];
+      setFilters(prev => ({ ...prev, status: updated }));
+  };
+
+  const handleTogglePriority = (priority: DemandPriority) => {
+      if (!setFilters || !filters) return;
+      const current = filters.priority || [];
+      const updated = current.includes(priority) ? current.filter(p => p !== priority) : [...current, priority];
+      setFilters(prev => ({ ...prev, priority: updated }));
+  };
+
+  const handleSetPeriod = (days: number | 'all') => {
+      if (!setFilters || !filters) return;
+      if (days === 'all') {
+          setFilters(prev => ({ ...prev, startDate: '', endDate: '' }));
+      } else {
+          const end = new Date();
+          const start = new Date();
+          start.setDate(end.getDate() - days);
+          setFilters(prev => ({ 
+              ...prev, 
+              startDate: start.toLocaleDateString('en-CA'), 
+              endDate: end.toLocaleDateString('en-CA') 
+          }));
+      }
+  };
+
+  const clearSidebarFilters = () => {
+      if (!setFilters) return;
+      setFilters(prev => ({ ...prev, status: [], priority: [], startDate: '', endDate: '' }));
+  };
+
+  const FilterToggle = ({ active, onClick, icon: Icon, label, colorClass }: any) => (
+      <button 
+        onClick={onClick}
+        className={`
+            flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold border transition-all
+            ${active 
+                ? `${colorClass} shadow-sm scale-[1.02]` 
+                : 'bg-white dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-500 dark:text-white/60 hover:bg-slate-50 dark:hover:bg-white/10'}
+        `}
+      >
+          {Icon && <Icon className="w-3 h-3" />}
+          {label}
+          {active && <Check className="w-3 h-3 ml-0.5" />}
+      </button>
+  );
+
+  const activeFiltersCount = filters ? 
+      (filters.status?.length || 0) + (filters.priority?.length || 0) + (filters.startDate ? 1 : 0) 
+      : 0;
+
   return (
     <div className="flex flex-col h-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-r border-slate-200 dark:border-white/10 w-full md:w-80 shadow-xl z-30">
-        {/* Header */}
-        <div className="p-4 border-b border-slate-200 dark:border-white/10 shrink-0">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 mb-3 flex items-center gap-2">
-                <MapPin className="w-4 h-4" /> Bairros e Locais
+        
+        {/* Header & Local Search */}
+        <div className="p-4 border-b border-slate-200 dark:border-white/10 shrink-0 space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-brand-500" /> Bairros e Locais
             </h3>
+            
             <div className="relative group">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 group-focus-within:text-brand-500 transition-colors" />
                 <input 
@@ -81,11 +150,116 @@ const NeighborhoodList: React.FC<NeighborhoodListProps> = ({ items, type, onSele
             </div>
         </div>
 
+        {/* Integrated Filter Control Center */}
+        {type === 'demands' && filters && setFilters && (
+            <div className="border-b border-slate-200 dark:border-white/10 shrink-0 bg-slate-50/50 dark:bg-black/20">
+                <button 
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-slate-500 dark:text-white/60 hover:text-slate-800 dark:hover:text-white transition-colors"
+                >
+                    <span className="flex items-center gap-2">
+                        <Filter className="w-3.5 h-3.5" /> 
+                        Filtros Ativos
+                        {activeFiltersCount > 0 && <span className="bg-brand-500 text-white px-1.5 rounded-full text-[9px]">{activeFiltersCount}</span>}
+                    </span>
+                    {showFilters ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
+
+                {showFilters && (
+                    <div className="px-4 pb-4 space-y-3 animate-in slide-in-from-top-2">
+                        {/* Status Group */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Status</label>
+                            <div className="flex flex-wrap gap-2">
+                                <FilterToggle 
+                                    label="Pend" 
+                                    icon={Clock} 
+                                    active={filters.status.includes(DemandStatus.PENDING)} 
+                                    onClick={() => handleToggleStatus(DemandStatus.PENDING)}
+                                    colorClass="bg-slate-100 border-slate-300 text-slate-700 dark:bg-white/10 dark:text-white"
+                                />
+                                <FilterToggle 
+                                    label="Andamento" 
+                                    icon={Zap} 
+                                    active={filters.status.includes(DemandStatus.IN_PROGRESS)} 
+                                    onClick={() => handleToggleStatus(DemandStatus.IN_PROGRESS)}
+                                    colorClass="bg-amber-100 border-amber-300 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30"
+                                />
+                                <FilterToggle 
+                                    label="Fim" 
+                                    icon={CheckCircle2} 
+                                    active={filters.status.includes(DemandStatus.COMPLETED)} 
+                                    onClick={() => handleToggleStatus(DemandStatus.COMPLETED)}
+                                    colorClass="bg-green-100 border-green-300 text-green-700 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Priority Group */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Prioridade</label>
+                            <div className="flex flex-wrap gap-2">
+                                <FilterToggle 
+                                    label="Alta" 
+                                    icon={AlertCircle}
+                                    active={filters.priority.includes(DemandPriority.HIGH)} 
+                                    onClick={() => handleTogglePriority(DemandPriority.HIGH)}
+                                    colorClass="bg-red-100 border-red-300 text-red-700 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30"
+                                />
+                                <FilterToggle 
+                                    label="Média" 
+                                    active={filters.priority.includes(DemandPriority.MEDIUM)} 
+                                    onClick={() => handleTogglePriority(DemandPriority.MEDIUM)}
+                                    colorClass="bg-amber-100 border-amber-300 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30"
+                                />
+                                <FilterToggle 
+                                    label="Baixa" 
+                                    active={filters.priority.includes(DemandPriority.LOW)} 
+                                    onClick={() => handleTogglePriority(DemandPriority.LOW)}
+                                    colorClass="bg-green-100 border-green-300 text-green-700 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Period Group */}
+                        <div className="space-y-1.5">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide ml-1">Período</label>
+                                {activeFiltersCount > 0 && <button onClick={clearSidebarFilters} className="text-[9px] text-red-500 hover:text-red-600 font-bold flex items-center gap-1"><RotateCcw className="w-2.5 h-2.5" /> Limpar</button>}
+                            </div>
+                            <div className="flex bg-white dark:bg-white/5 rounded-lg border border-slate-200 dark:border-white/10 p-0.5">
+                                {[
+                                    { label: '7d', val: 7 }, 
+                                    { label: '30d', val: 30 }, 
+                                    { label: '90d', val: 90 }, 
+                                    { label: 'Tudo', val: 'all' }
+                                ].map((opt) => {
+                                    const isActive = opt.val === 'all' 
+                                        ? !filters.startDate 
+                                        : filters.startDate && new Date(filters.startDate).getDate() === new Date(new Date().setDate(new Date().getDate() - (opt.val as number))).getDate();
+                                    
+                                    return (
+                                        <button 
+                                            key={opt.label}
+                                            onClick={() => handleSetPeriod(opt.val as any)}
+                                            className={`flex-1 py-1 text-[10px] font-bold rounded-md transition-all ${isActive ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300' : 'text-slate-500 dark:text-white/50 hover:bg-slate-50 dark:hover:bg-white/5'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+
         {/* List */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
             {Object.keys(groupedItems).length === 0 ? (
                 <div className="p-8 text-center text-slate-400 dark:text-white/30 text-sm italic">
-                    Nenhum registro encontrado nesta região.
+                    Nenhum registro encontrado nesta região com os filtros atuais.
                 </div>
             ) : (
                 Object.entries(groupedItems).map(([bairro, groupItems]) => {

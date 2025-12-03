@@ -13,6 +13,7 @@ interface FilterBarProps {
   isMapMode?: boolean;
   mapViewMode?: 'demands' | 'citizens'; 
   onMapViewModeChange?: (mode: 'demands' | 'citizens') => void;
+  hideAdvanced?: boolean;
 }
 
 const FilterChip: React.FC<{ label: React.ReactNode; onRemove: () => void }> = ({ label, onRemove }) => (
@@ -24,22 +25,7 @@ const FilterChip: React.FC<{ label: React.ReactNode; onRemove: () => void }> = (
     </div>
 );
 
-const MapFilterChip: React.FC<{ label: string; icon?: any; isActive: boolean; onClick: () => void }> = ({ label, icon: Icon, isActive, onClick }) => (
-    <button 
-        onClick={onClick}
-        className={`
-            flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-sm whitespace-nowrap border
-            ${isActive 
-                ? 'bg-brand-600 text-white border-brand-600' 
-                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-white border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10'}
-        `}
-    >
-        {Icon && <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-400'}`} />}
-        {label}
-    </button>
-);
-
-const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, users = [], availableTags = [], isMapMode = false, mapViewMode, onMapViewModeChange }) => {
+const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, users = [], availableTags = [], isMapMode = false, mapViewMode, onMapViewModeChange, hideAdvanced = false }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerDate, setPickerDate] = useState(new Date());
@@ -79,37 +65,14 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
       }
   };
 
-  const toggleStatus = (status: DemandStatus) => {
-      const current = filters.status;
-      if (current.includes(status)) handleChange('status', current.filter(s => s !== status));
-      else handleChange('status', [...current, status]);
-  };
-
-  const togglePriority = (priority: DemandPriority) => {
-      const current = filters.priority;
-      if (current.includes(priority)) handleChange('priority', current.filter(p => p !== priority));
-      else handleChange('priority', [...current, priority]);
-  };
-
-  const toggleToday = () => {
-      if (filters.startDate) {
-          handleChange('startDate', '');
-          handleChange('endDate', '');
-      } else {
-          const today = new Date().toLocaleDateString('en-CA');
-          handleChange('startDate', today);
-          handleChange('endDate', today);
-      }
+  const getUserName = (id: string) => {
+      const user = users.find(u => u.id === id);
+      return user ? user.nome : 'Usuário';
   };
 
   const formatRole = (role: string) => {
       if (!role) return '';
       return role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-  };
-
-  const getUserName = (id: string) => {
-      const user = users.find(u => u.id === id);
-      return user ? user.nome : 'Usuário';
   };
 
   // Date Picker Logic
@@ -212,7 +175,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
             )}
          </div>
 
-         {/* Map Mode Toggle Switch (Added here) */}
+         {/* Map Mode Toggle Switch */}
          {isMapMode && onMapViewModeChange && mapViewMode && (
              <div className="w-full md:w-auto min-w-[200px] shadow-lg rounded-xl">
                  <SegmentedControl
@@ -226,7 +189,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
              </div>
          )}
 
-         {!isMapMode ? (
+         {!isMapMode && (
              <div className="flex w-full md:w-auto gap-2">
                  <button 
                     onClick={() => setShowAdvanced(!showAdvanced)}
@@ -251,7 +214,10 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
                     </button>
                  )}
              </div>
-         ) : (
+         )}
+         
+         {/* Simple Advanced Button for Desktop Map Mode if NOT hidden */}
+         {isMapMode && !hideAdvanced && (
              <div className="hidden md:flex">
                  <button 
                     onClick={() => setShowAdvanced(!showAdvanced)}
@@ -263,20 +229,8 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
          )}
       </div>
 
-      {/* Map Mode Chips - Quick Filters (Only for Demands) */}
-      {isMapMode && mapViewMode !== 'citizens' && (
-          <div className="flex overflow-x-auto gap-2 pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none snap-x">
-              <MapFilterChip label="Pendentes" icon={Clock} isActive={filters.status.includes(DemandStatus.PENDING)} onClick={() => toggleStatus(DemandStatus.PENDING)} />
-              <MapFilterChip label="Alta Prioridade" icon={AlertCircle} isActive={filters.priority.includes(DemandPriority.HIGH)} onClick={() => togglePriority(DemandPriority.HIGH)} />
-              <MapFilterChip label="Em Andamento" icon={Zap} isActive={filters.status.includes(DemandStatus.IN_PROGRESS)} onClick={() => toggleStatus(DemandStatus.IN_PROGRESS)} />
-              <MapFilterChip label="Hoje" icon={Calendar} isActive={!!filters.startDate} onClick={toggleToday} />
-          </div>
-      )}
-      
-      {/* Map Mode: Citizens Indicator removed from bottom, logic integrated into toggle above */}
-
       {/* Active Filters Area (Standard View) */}
-      {(!isMapMode || (isMapMode && window.innerWidth >= 768)) && activeFiltersCount > 0 && (
+      {(!isMapMode || (isMapMode && window.innerWidth >= 768)) && activeFiltersCount > 0 && !hideAdvanced && (
          <div className="flex flex-wrap gap-2 items-center px-1">
              <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-white/40 mr-1 flex items-center gap-1"><Filter className="w-3 h-3" /> Ativos:</span>
              

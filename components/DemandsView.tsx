@@ -286,6 +286,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                           setMapViewMode(mode);
                           setSelectedNeighborhood(null); // Reset sidebar filter on mode switch
                       }}
+                      hideAdvanced={viewMode === 'map'}
                   />
               </div>
           )}
@@ -347,6 +348,8 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                                     selectedNeighborhood={selectedNeighborhood}
                                     onFilterNeighborhood={setSelectedNeighborhood}
                                     onSelect={(item) => mapViewMode === 'demands' ? setSelectedDemandId(item.id) : handleCitizenClick(item.id)}
+                                    filters={filters}
+                                    setFilters={setFilters}
                                  />
                              </div>
 
@@ -363,6 +366,8 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                                             mapViewMode === 'demands' ? setSelectedDemandId(item.id) : handleCitizenClick(item.id);
                                             setIsSidebarOpen(false);
                                         }}
+                                        filters={filters}
+                                        setFilters={setFilters}
                                      />
                                  </div>
                              </div>
