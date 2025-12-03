@@ -1,4 +1,6 @@
 
+
+
 export enum DemandLevel {
   MUNICIPAL = 'Municipal',
   ESTADUAL = 'Estadual',
@@ -36,6 +38,7 @@ export interface User {
   role: Role;
   avatar?: string;
   active?: boolean; // Adicionado para controle de acesso
+  firstLogin?: boolean;
 }
 
 // Configuração granular do Dashboard
@@ -83,6 +86,7 @@ export interface Citizen {
   estado?: string;
   lat?: number;
   lon?: number;
+  observacoes?: string; // Novo Campo
 }
 
 export interface Pessoa {
@@ -102,6 +106,7 @@ export interface Pessoa {
   created_at?: string;
   lat?: number;
   lon?: number;
+  observacoes?: string; // Novo Campo
 }
 
 export interface Demand {
@@ -122,7 +127,7 @@ export interface Demand {
   lon?: number;
 }
 
-export type InteractionType = 'comentario' | 'checklist';
+export type InteractionType = 'comentario' | 'checklist' | 'status_change' | 'system_log';
 
 export interface DemandInteraction {
   id: string;

@@ -94,12 +94,12 @@ const DemandsView: React.FC<DemandsViewProps> = ({
       }
   }, [initialViewMode]);
 
-  // Handle Initial Map Mode Prop
+  // Handle Initial Map Mode Prop - Trigger immediately if prop changes
   useEffect(() => {
-      if (initialMapViewMode && viewMode === 'map') {
+      if (initialMapViewMode) {
           setMapViewMode(initialMapViewMode);
       }
-  }, [initialMapViewMode, viewMode]);
+  }, [initialMapViewMode]);
 
   // Load Notices
   useEffect(() => {

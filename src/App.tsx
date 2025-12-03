@@ -298,6 +298,14 @@ const App: React.FC = () => {
             setSelectedDemandId(null);
             setEditingDemand(null);
 
+            // CRITICAL: Clear filters to ensure the target marker is visible on map
+            // If filters are active (e.g. search term "Maria"), clicking "Jose" from another view would hide Jose on map.
+            setFilters({
+                search: '', level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: [], responsibleId: undefined
+            });
+            // Also reset dashboard time range just in case
+            setDashTimeRange('all');
+
             if (e.detail?.demandId) {
                 if (e.detail.lat && e.detail.lon) {
                     setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
