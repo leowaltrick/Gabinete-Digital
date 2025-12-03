@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Citizen, Demand, DemandStatus } from '../types';
 import { X, MapPin, Phone, Mail, PlusCircle, Edit3, ChevronLeft, ChevronRight, BarChart3, User, ExternalLink, MessageCircle, FileText, AlignLeft } from 'lucide-react';
@@ -15,6 +12,7 @@ interface CitizenDetailsModalProps {
   onCreateDemand: () => void;
   onNotification?: (type: 'success' | 'error', message: string) => void;
   onSelectDemand?: (demand: Demand) => void; // New prop to handle navigation
+  onMapFocus?: (lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => void;
 }
 
 const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({ 
@@ -23,7 +21,8 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
     onEdit, 
     onCreateDemand,
     onNotification,
-    onSelectDemand
+    onSelectDemand,
+    onMapFocus
 }) => {
   const [history, setHistory] = useState<Demand[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -66,24 +65,18 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
   }, [citizen.id]);
 
   const handleMapClick = () => {
-      // Force navigation to map view with this citizen selected
-      if (!citizen.lat || !citizen.lon) {
-          if (onNotification) onNotification('error', 'Localização não definida.');
-          return;
-      }
+      // Validar se coordenadas existem e não são nulas
+      const hasCoords = citizen.lat !== null && citizen.lat !== undefined && citizen.lon !== null && citizen.lon !== undefined;
       
-      // Dispatch event to App.tsx
-      setTimeout(() => {
-          const event = new CustomEvent('navigate-to-map', { 
-              detail: { 
-                  citizenId: citizen.id,
-                  lat: citizen.lat,
-                  lon: citizen.lon
-              } 
-          });
-          window.dispatchEvent(event);
-      }, 0);
-      onClose(); // Close modal immediately
+      if (hasCoords && onMapFocus) {
+          onClose(); // Fecha o modal atual
+          onMapFocus(citizen.lat!, citizen.lon!, 'citizens', citizen.id); // Redireciona
+      } else {
+          // Se não houver coordenadas ou função, não faz nada ou avisa
+          if (onNotification && !hasCoords) {
+              onNotification('error', 'Localização não disponível para navegação.');
+          }
+      }
   };
 
   const openWhatsApp = (phone: string) => {
@@ -110,10 +103,10 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
         ></div>
 
         {/* Modal Container */}
-        <div className="relative w-full h-full md:h-[90vh] md:max-w-5xl bg-white dark:bg-[#0b1121] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 border-t md:border border-slate-200 dark:border-white/10">
+        <div className="relative w-full h-full md:h-[90vh] md:max-w-5xl bg-white dark:bg-[#0b1121] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 md:border border-slate-200 dark:border-white/10">
             
             {/* Sticky Header */}
-            <div className="px-4 py-3 md:px-8 md:py-5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20 shrink-0 sticky top-0">
+            <div className="px-4 py-3 md:px-8 md:py-5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20 shrink-0 sticky top-0 rounded-t-3xl">
                 <div className="flex-1 min-w-0 mr-4 flex items-center gap-3">
                     <button 
                         onClick={onClose} 

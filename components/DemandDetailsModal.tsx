@@ -17,6 +17,7 @@ interface DemandDetailsModalProps {
   canNavigateNext?: boolean;
   onNotification?: (type: 'success' | 'error', message: string) => void;
   onViewCitizen?: (citizenId: string) => void;
+  onMapFocus?: (lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => void;
 }
 
 const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({ 
@@ -30,7 +31,8 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
     canNavigatePrev,
     canNavigateNext,
     onNotification,
-    onViewCitizen
+    onViewCitizen,
+    onMapFocus
 }) => {
   
   // --- States for Interactions ---
@@ -317,17 +319,18 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
   };
 
   const handleMapClick = () => {
-      setTimeout(() => {
-          const event = new CustomEvent('navigate-to-map', { 
-              detail: { 
-                  demandId: demand.id,
-                  lat: demand.lat,
-                  lon: demand.lon
-              } 
-          });
-          window.dispatchEvent(event);
-      }, 0);
-      onClose(); 
+      // Validar se coordenadas existem e não são nulas
+      const hasCoords = demand.lat !== null && demand.lat !== undefined && demand.lon !== null && demand.lon !== undefined;
+      
+      if (hasCoords && onMapFocus) {
+          onClose(); // Fecha o modal atual
+          onMapFocus(demand.lat!, demand.lon!, 'demands', demand.id); // Redireciona
+      } else {
+          // Se não houver coordenadas ou função, não faz nada ou avisa
+          if (onNotification && !hasCoords) {
+              onNotification('error', 'Localização não disponível para navegação.');
+          }
+      }
   };
 
   const fullAddress = citizen 
@@ -343,10 +346,10 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
         ></div>
 
         {/* Modal Container */}
-        <div className="relative w-full h-full md:h-[90vh] md:max-w-6xl bg-white dark:bg-[#0b1121] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 border-t md:border border-slate-200 dark:border-white/10">
+        <div className="relative w-full h-full md:h-[90vh] md:max-w-6xl bg-white dark:bg-[#0b1121] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 md:border border-slate-200 dark:border-white/10">
             
             {/* Sticky Header */}
-            <div className="px-4 py-3 md:px-8 md:py-5 border-b border-slate-200 dark:border-white/10 flex items-start justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20 shrink-0 sticky top-0">
+            <div className="px-4 py-3 md:px-8 md:py-5 border-b border-slate-200 dark:border-white/10 flex items-start justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20 shrink-0 sticky top-0 rounded-t-3xl">
                 <div className="flex-1 min-w-0 mr-4">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <button 
