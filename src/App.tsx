@@ -315,33 +315,6 @@ const App: React.FC = () => {
         setView('map');
     }, []);
 
-    // Global Event Listener for Map Navigation (Fixes Prop Drilling)
-    useEffect(() => {
-        const handleMapNav = (e: CustomEvent) => {
-            const { lat, lon, type, id, demandId, citizenId } = e.detail || {};
-            
-            // Normalize ID and Type from older event structures or the new one
-            const targetId = id || demandId || citizenId;
-            const targetType = type || (citizenId ? 'citizens' : 'demands');
-
-            if (lat && lon) {
-                // Full navigation with coords
-                handleMapFocus(lat, lon, targetType, targetId);
-            } else if (targetId && targetType === 'demands') {
-                // Fallback for ID only (filters but no zoom if no coords)
-                setSelectedDemandId(null);
-                setEditingDemand(null);
-                setSelectedCitizenId(null);
-                // We don't zoom if no lat/lon, just filter
-                setFilters(prev => ({ ...prev, search: targetId }));
-                setView('map');
-            }
-        };
-        
-        window.addEventListener('navigate-to-map' as any, handleMapNav);
-        return () => window.removeEventListener('navigate-to-map' as any, handleMapNav);
-    }, [handleMapFocus]);
-
     // Notification for Sync
     useEffect(() => {
         if (syncCount > 0) {
@@ -609,7 +582,7 @@ const App: React.FC = () => {
                  <OnboardingTutorial onFinish={() => setShowOnboarding(false)} />
              )}
 
-             <div className={`dashboard-root flex h-full w-full transition-all duration-700 ease-in-out ${!currentUser ? 'blur-[5px] scale-[1.02] pointer-events-none grayscale-[0.2]' : 'filter-none scale-100 opacity-100'}`}>
+             <div className={`dashboard-root flex h-full w-full transition-all duration-700 ease-in-out ${!currentUser ? 'blur-[5px] scale-[1.02] pointer-events-none grayscale-[0.2]' : 'filter-none opacity-100'}`}>
                 
                 <Sidebar 
                     currentView={view === 'fast-track' ? 'demands' : view} 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Landmark, LogOut, User as UserIcon, Pin, PinOff, Settings, Moon, Sun, LayoutList, Users, Map as MapIcon, Home } from 'lucide-react';
 import { ViewState, User, SystemConfig } from '../types';
 
@@ -42,6 +43,65 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({ currentView, setView, user
   const handleNavigation = (view: ViewState) => {
       setView(view);
   };
+
+  const mobileNav = (
+      <nav 
+        className={`
+            lg:hidden fixed bottom-0 left-0 right-0 z-[9999] 
+            bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl 
+            border-t border-slate-200 dark:border-white/10 
+            pb-[calc(env(safe-area-inset-bottom)+0.5rem)] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]
+            transition-transform duration-300 ease-in-out
+            ${showMobileDock ? 'translate-y-0' : 'translate-y-full'}
+        `}
+      >
+        <div className="flex items-center justify-around h-[64px] px-2 pt-1">
+            {visibleItems.map((item) => {
+            const isActive = currentView === item.id;
+            const Icon = item.icon;
+            
+            return (
+                <button
+                key={item.id}
+                onClick={() => handleNavigation(item.id as ViewState)}
+                className={`
+                    flex flex-col items-center justify-center gap-1 w-full h-full transition-all duration-200 active:scale-95
+                    ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}
+                `}
+                >
+                <div className={`
+                    relative p-1.5 rounded-2xl transition-all duration-300
+                    ${isActive ? 'bg-brand-50 dark:bg-brand-500/20 -translate-y-1' : ''}
+                `}>
+                    <Icon 
+                    className={`w-6 h-6 transition-all ${isActive ? 'stroke-[2.5px] scale-110' : 'stroke-2'}`} 
+                    />
+                </div>
+                <span className={`text-[9px] font-bold tracking-wide transition-opacity ${isActive ? 'opacity-100' : 'opacity-60'}`}>
+                    {item.label}
+                </span>
+                </button>
+            )
+            })}
+            
+            {/* Mobile Settings Link - Available for everyone */}
+            <button
+                onClick={() => handleNavigation('admin_panel')}
+                className={`
+                flex flex-col items-center justify-center gap-1 w-full h-full transition-all duration-200 active:scale-95
+                ${currentView === 'admin_panel' ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}
+                `}
+            >
+                <div className={`relative p-1.5 rounded-2xl transition-all duration-300 ${currentView === 'admin_panel' ? 'bg-brand-50 dark:bg-brand-500/20 -translate-y-1' : ''}`}>
+                <Settings className={`w-6 h-6 ${currentView === 'admin_panel' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+                </div>
+                <span className={`text-[9px] font-bold tracking-wide ${currentView === 'admin_panel' ? 'opacity-100' : 'opacity-60'}`}>
+                Config
+                </span>
+            </button>
+        </div>
+      </nav>
+  );
 
   return (
     <>
@@ -191,63 +251,8 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({ currentView, setView, user
         </div>
       </aside>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
-      <nav 
-        className={`
-            lg:hidden fixed bottom-0 left-0 right-0 z-[3000] 
-            bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl 
-            border-t border-slate-200 dark:border-white/10 
-            pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,0.05)]
-            transition-transform duration-300 ease-in-out
-            ${showMobileDock ? 'translate-y-0' : 'translate-y-full'}
-        `}
-      >
-        <div className="flex items-center justify-around h-[76px] px-2 pb-2">
-            {visibleItems.map((item) => {
-            const isActive = currentView === item.id;
-            const Icon = item.icon;
-            
-            return (
-                <button
-                key={item.id}
-                onClick={() => handleNavigation(item.id as ViewState)}
-                className={`
-                    flex flex-col items-center justify-center gap-1.5 w-full h-full transition-all duration-200 active:scale-95
-                    ${isActive ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}
-                `}
-                >
-                <div className={`
-                    relative p-2 rounded-2xl transition-all duration-300
-                    ${isActive ? 'bg-brand-50 dark:bg-brand-500/20 -translate-y-1' : ''}
-                `}>
-                    <Icon 
-                    className={`w-6 h-6 transition-all ${isActive ? 'stroke-[2.5px] scale-110' : 'stroke-2'}`} 
-                    />
-                </div>
-                <span className={`text-[10px] font-bold tracking-wide transition-opacity ${isActive ? 'opacity-100' : 'opacity-60'}`}>
-                    {item.label}
-                </span>
-                </button>
-            )
-            })}
-            
-            {/* Mobile Settings Link - Available for everyone */}
-            <button
-                onClick={() => handleNavigation('admin_panel')}
-                className={`
-                flex flex-col items-center justify-center gap-1.5 w-full h-full transition-all duration-200 active:scale-95
-                ${currentView === 'admin_panel' ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}
-                `}
-            >
-                <div className={`relative p-2 rounded-2xl transition-all duration-300 ${currentView === 'admin_panel' ? 'bg-brand-50 dark:bg-brand-500/20 -translate-y-1' : ''}`}>
-                <Settings className={`w-6 h-6 ${currentView === 'admin_panel' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
-                </div>
-                <span className={`text-[10px] font-bold tracking-wide ${currentView === 'admin_panel' ? 'opacity-100' : 'opacity-60'}`}>
-                Configurações
-                </span>
-            </button>
-        </div>
-      </nav>
+      {/* Render Mobile Nav via Portal to bypass parent transforms */}
+      {createPortal(mobileNav, document.body)}
     </>
   );
 });
