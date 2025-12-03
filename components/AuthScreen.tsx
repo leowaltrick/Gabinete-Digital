@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Role } from '../types';
-import { LogIn, Loader2, AlertCircle, Mail, Lock, Check, KeyRound, ArrowRight, Fingerprint, Building2, LayoutList, Users, Map as MapIcon, Calendar, BarChart3, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { LogIn, Loader2, AlertCircle, Mail, Lock, Check, KeyRound, ArrowRight, Fingerprint, Building2, LayoutList, Users, Map as MapIcon, Calendar, BarChart3, ShieldCheck, Eye, EyeOff, WifiOff } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 interface AuthScreenProps {
@@ -61,6 +62,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [step, setStep] = useState<AuthStep>('login');
   const [isExiting, setIsExiting] = useState(false);
   const [animateEntrance, setAnimateEntrance] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Login State
   const [email, setEmail] = useState('');
@@ -81,6 +83,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
   useEffect(() => {
       setAnimateEntrance(true);
+      
+      const handleStatusChange = () => setIsOnline(navigator.onLine);
+      window.addEventListener('online', handleStatusChange);
+      window.addEventListener('offline', handleStatusChange);
+      return () => {
+          window.removeEventListener('online', handleStatusChange);
+          window.removeEventListener('offline', handleStatusChange);
+      };
   }, []);
 
   // --- Helpers ---
@@ -105,6 +115,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOnline) {
+        setError("Conexão necessária para realizar login.");
+        return;
+    }
+    
     setIsLoading(true);
     setError(null);
 
@@ -157,6 +172,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const handleNewPasswordSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!isPasswordValid || !tempUserData) return;
+      if (!isOnline) {
+          setError("Conexão necessária para definir senha.");
+          return;
+      }
+
       setIsLoading(true);
       setError(null);
 
@@ -255,6 +275,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                       </p>
                   </div>
 
+                  {!isOnline && (
+                    <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-500/20 text-amber-600 dark:text-amber-300 text-sm font-bold rounded-2xl flex items-center gap-3 animate-in slide-in-from-left-2 shadow-sm">
+                        <WifiOff className="w-5 h-5 flex-shrink-0" />
+                        Sem conexão. Login indisponível.
+                    </div>
+                  )}
+
                   {error && (
                     <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-300 text-sm font-bold rounded-2xl flex items-center gap-3 animate-in slide-in-from-left-2 shadow-sm">
                         <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -273,10 +300,11 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                                       type="email"
                                       value={email}
                                       onChange={(e) => setEmail(e.target.value)}
-                                      className="block w-full pl-11 pr-4 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm"
+                                      className="block w-full pl-11 pr-4 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm disabled:opacity-50"
                                       placeholder="Email"
                                       required
                                       autoComplete="email"
+                                      disabled={!isOnline}
                                   />
                               </div>
 
@@ -288,15 +316,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                                       type={showPassword ? 'text' : 'password'}
                                       value={password}
                                       onChange={(e) => setPassword(e.target.value)}
-                                      className="block w-full pl-11 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm"
+                                      className="block w-full pl-11 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm disabled:opacity-50"
                                       placeholder="Senha"
                                       required
                                       autoComplete="current-password"
+                                      disabled={!isOnline}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                    disabled={!isOnline}
                                   >
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
@@ -305,7 +335,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
                           <button
                               type="submit"
-                              disabled={isLoading}
+                              disabled={isLoading || !isOnline}
                               className="w-full py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-base transition-all transform active:scale-[0.98] shadow-lg shadow-brand-600/20 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed group relative overflow-hidden"
                           >
                               {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
@@ -320,15 +350,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                                     type={showNewPassword ? 'text' : 'password'} 
                                     value={newPassword} 
                                     onChange={(e) => setNewPassword(e.target.value)} 
-                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" 
+                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold disabled:opacity-50" 
                                     placeholder="Nova Senha" 
                                     maxLength={12} 
-                                    autoComplete="new-password" 
+                                    autoComplete="new-password"
+                                    disabled={!isOnline} 
                                   />
                                   <button
                                     type="button"
                                     onClick={() => setShowNewPassword(!showNewPassword)}
                                     className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                    disabled={!isOnline}
                                   >
                                     {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
@@ -338,15 +370,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                                     type={showConfirmPassword ? 'text' : 'password'} 
                                     value={confirmPassword} 
                                     onChange={(e) => setConfirmPassword(e.target.value)} 
-                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" 
+                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold disabled:opacity-50" 
                                     placeholder="Confirmar Senha" 
                                     maxLength={12} 
                                     autoComplete="new-password" 
+                                    disabled={!isOnline}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                     className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                    disabled={!isOnline}
                                   >
                                     {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                   </button>
@@ -362,7 +396,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
                           <div className="flex gap-4">
                               <button type="button" onClick={() => { setStep('login'); setNewPassword(''); setConfirmPassword(''); setTempUserData(null); }} className="flex-1 py-4 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/10 rounded-2xl font-bold text-sm border border-slate-200 dark:border-white/10 transition-colors">Voltar</button>
-                              <button type="submit" disabled={isLoading || !isPasswordValid} className="flex-[2] py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-all">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />} Confirmar</button>
+                              <button type="submit" disabled={isLoading || !isPasswordValid || !isOnline} className="flex-[2] py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-all">{isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />} Confirmar</button>
                           </div>
                       </form>
                   )}

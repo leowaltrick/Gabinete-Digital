@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Demand, DemandLevel, DemandStatus, DemandPriority, Pessoa, DemandType } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Save, ArrowLeft, User, MapPin, Calendar, Clock, AlertCircle, CheckCircle, Loader2, Phone, Mail, FileText, Activity, X } from 'lucide-react';
+import { Save, ArrowLeft, User, MapPin, Calendar, Clock, AlertCircle, CheckCircle, Loader2, Phone, Mail, FileText, Activity, X, CloudOff } from 'lucide-react';
 import { formatPhone } from '../utils/cpfValidation';
 
 interface DemandEditProps {
@@ -23,6 +24,7 @@ const DemandEdit: React.FC<DemandEditProps> = ({ demand, onSuccess, onCancel, on
   const [citizen, setCitizen] = useState<Pessoa | null>(null);
   const [isLoadingCitizen, setIsLoadingCitizen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isOnline = navigator.onLine;
 
   useEffect(() => {
     const fetchCitizen = async () => {
@@ -56,14 +58,40 @@ const DemandEdit: React.FC<DemandEditProps> = ({ demand, onSuccess, onCancel, on
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOnline) {
+        if(onNotification) onNotification('error', 'Edição indisponível em modo offline.');
+        return;
+    }
+
     setIsSaving(true);
     try {
       if (!isSupabaseConfigured() || !supabase) throw new Error("Supabase não configurado.");
+      
       const { error } = await supabase
         .from('demands')
         .update({ title, description, level, status, priority, type: demandType, deadline: deadline || null })
         .eq('id', demand.id);
+      
       if (error) throw error;
+
+      // Auto-Log Changes
+      const currentUser = JSON.parse(localStorage.getItem('geo_user') || '{}');
+      const changes = [];
+      if(title !== demand.title) changes.push(`Título`);
+      if(description !== demand.description) changes.push(`Descrição`);
+      if(status !== demand.status) changes.push(`Status para ${status}`);
+      if(priority !== demand.priority) changes.push(`Prioridade para ${priority}`);
+      
+      if(changes.length > 0) {
+          await supabase.from('demand_interactions').insert({
+              demanda_id: demand.id,
+              tipo: 'status_change',
+              texto: `Demanda editada por ${currentUser.name || 'Sistema'}. Alterações: ${changes.join(', ')}.`,
+              usuario: currentUser.name || 'Sistema',
+              created_at: new Date().toISOString()
+          });
+      }
+
       if(onNotification) onNotification('success', 'Alterações salvas com sucesso!');
       setTimeout(() => onSuccess(demand.id), 1000);
     } catch (err: any) {
@@ -85,11 +113,11 @@ const DemandEdit: React.FC<DemandEditProps> = ({ demand, onSuccess, onCancel, on
       <div className="flex items-center justify-between mb-6 sticky top-0 bg-slate-50/95 dark:bg-[#020617]/95 backdrop-blur-sm z-20 py-2 md:static md:bg-transparent md:py-0">
         <div className="flex items-center gap-4">
             <button onClick={onCancel} className="p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 text-slate-500 dark:text-white transition-colors"> <ArrowLeft className="w-6 h-6" /> </button>
-            <div> <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex flex-col md:flex-row md:items-center gap-1 md:gap-2"> Edição de Demanda <span className="text-xs md:text-sm font-normal text-slate-400 dark:text-white/40 border border-slate-200 dark:border-white/10 px-2 py-0.5 rounded-md font-mono w-fit">#{demand.id.slice(0, 8)}</span> </h1> </div>
+            <div> <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex flex-col md:flex-row md:items-center gap-1 md:gap-2"> Edição de Demanda <span className="text-xs md:text-sm font-normal text-slate-400 dark:text-white/40 border border-slate-200 dark:border-white/10 px-2 py-0.5 rounded-md font-mono w-fit">#{demand.id.slice(0, 8)}</span> </h1> </div>
         </div>
         <div className="hidden md:flex gap-3">
              <button onClick={onCancel} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 dark:text-white/60 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-900 dark:hover:text-white transition-colors border border-transparent"> Cancelar </button>
-             <button onClick={handleSave} disabled={isSaving} className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"> {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} {isSaving ? 'Salvando...' : 'Salvar Alterações'} </button>
+             <button onClick={handleSave} disabled={isSaving || !isOnline} className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-[0_0_20px_rgba(14,165,233,0.3)] transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"> {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : isOnline ? <Save className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />} {isSaving ? 'Salvando...' : isOnline ? 'Salvar Alterações' : 'Sem Conexão'} </button>
         </div>
       </div>
 
@@ -126,7 +154,7 @@ const DemandEdit: React.FC<DemandEditProps> = ({ demand, onSuccess, onCancel, on
       {/* MOBILE STICKY ACTION BAR */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/95 dark:bg-[#0b1121]/95 backdrop-blur-md border-t border-slate-200 dark:border-white/10 z-30 flex gap-3 pb-6">
             <button onClick={onCancel} className="flex-1 py-3 rounded-xl font-bold text-slate-500 dark:text-white/60 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 active:scale-95 transition-all"> Cancelar </button>
-            <button onClick={handleSave} disabled={isSaving} className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-70 active:scale-95 transition-all"> {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} {isSaving ? 'Salvando...' : 'Salvar'} </button>
+            <button onClick={handleSave} disabled={isSaving || !isOnline} className="flex-1 py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-70 active:scale-95 transition-all"> {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : isOnline ? <Save className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />} {isSaving ? 'Salvando...' : isOnline ? 'Salvar' : 'Offline'} </button>
       </div>
     </div>
   );

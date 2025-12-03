@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLeft, X, Filter, MapPin, BarChart3, FileText, AlignLeft, Phone, Mail } from 'lucide-react';
+import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLeft, X, Filter, MapPin, BarChart3, FileText, AlignLeft, Phone, Mail, CloudOff } from 'lucide-react';
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits, formatCEP } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
@@ -76,6 +76,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
   const [existingPerson, setExistingPerson] = useState<Pessoa | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const canCreate = permissions ? permissions.canCreateCitizen : true;
+  const isOnline = navigator.onLine;
 
   useEffect(() => { if (onModeChange) onModeChange(viewMode); }, [viewMode, onModeChange]);
   useEffect(() => { if (initialMode && initialMode !== 'list') { if (initialMode === 'form' && viewMode !== 'form') { handleSwitchToForm(); } } }, [initialMode]); 
@@ -146,6 +147,11 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => { 
       e.preventDefault(); 
+      if (!isOnline) {
+          if(onNotification) onNotification('error', 'Cadastro/Edição indisponível offline.');
+          return;
+      }
+
       const cleanPhone = telefone ? stripNonDigits(telefone) : null; 
       const cleanCep = cep ? stripNonDigits(cep) : null;
 
@@ -253,6 +259,13 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{isEditing ? 'Editar Cidadão' : 'Novo Cidadão'}</h2>
             </div>
 
+            {!isOnline && (
+                <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-500/20 text-amber-600 dark:text-amber-300 text-sm font-bold rounded-xl flex items-center gap-3">
+                    <CloudOff className="w-5 h-5" />
+                    Edição e criação indisponíveis no modo offline.
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto custom-scrollbar p-1 pb-24 md:pb-0">
                 <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 pb-20">
                     <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 space-y-6">
@@ -263,19 +276,19 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Nome *</label>
-                                <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="Nome" required />
+                                <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="Nome" required disabled={!isOnline} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Sobrenome</label>
-                                <input type="text" value={sobrenome} onChange={(e) => setSobrenome(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="Sobrenome" />
+                                <input type="text" value={sobrenome} onChange={(e) => setSobrenome(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="Sobrenome" disabled={!isOnline} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Celular (WhatsApp) *</label>
-                                <input type="tel" value={telefone} onChange={(e) => setTelefone(formatPhone(e.target.value))} onBlur={handlePhoneBlur} className={`w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border ${formError && formError.includes('Telefone') ? 'border-red-500' : 'border-slate-200 dark:border-white/10'} outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white`} placeholder="(00) 00000-0000" required />
+                                <input type="tel" value={telefone} onChange={(e) => setTelefone(formatPhone(e.target.value))} onBlur={handlePhoneBlur} className={`w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border ${formError && formError.includes('Telefone') ? 'border-red-500' : 'border-slate-200 dark:border-white/10'} outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white`} placeholder="(00) 00000-0000" required disabled={!isOnline} />
                             </div>
                             <div className="space-y-2 relative">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Email</label>
-                                <input type="email" value={email} onChange={(e) => handleEmailChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="exemplo@email.com" />
+                                <input type="email" value={email} onChange={(e) => handleEmailChange(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" placeholder="exemplo@email.com" disabled={!isOnline} />
                                 {emailSuggestions.length > 0 && (
                                     <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-lg z-10 overflow-hidden">
                                         {emailSuggestions.map(s => (
@@ -305,33 +318,34 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                                         onBlur={handleCepBlur} 
                                         className="w-full pl-4 pr-10 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" 
                                         placeholder="00000-000" 
+                                        disabled={!isOnline}
                                     />
                                     {isLoadingCep ? <Loader2 className="absolute right-3 top-3 w-5 h-5 text-brand-500 animate-spin" /> : <Search className="absolute right-3 top-3 w-5 h-5 text-slate-400" />}
                                 </div>
                             </div>
                             <div className="col-span-12 sm:col-span-8 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Cidade</label>
-                                <input type="text" value={cidade} onChange={(e) => setCidade(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" />
+                                <input type="text" value={cidade} onChange={(e) => setCidade(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" disabled={!isOnline} />
                             </div>
                             <div className="col-span-12 sm:col-span-9 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Logradouro</label>
-                                <input type="text" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" />
+                                <input type="text" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" disabled={!isOnline} />
                             </div>
                             <div className="col-span-4 sm:col-span-3 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Número</label>
-                                <input type="text" value={numero} onChange={(e) => setNumero(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" />
+                                <input type="text" value={numero} onChange={(e) => setNumero(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" disabled={!isOnline} />
                             </div>
                             <div className="col-span-8 sm:col-span-8 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Bairro</label>
-                                <input type="text" value={bairro} onChange={(e) => setBairro(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" />
+                                <input type="text" value={bairro} onChange={(e) => setBairro(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" disabled={!isOnline} />
                             </div>
                             <div className="col-span-4 sm:col-span-4 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">UF</label>
-                                <input type="text" value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white uppercase" maxLength={2} />
+                                <input type="text" value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white uppercase" maxLength={2} disabled={!isOnline} />
                             </div>
                             <div className="col-span-12 space-y-2">
                                 <label className="text-xs font-bold uppercase text-slate-500 dark:text-white/50">Complemento</label>
-                                <input type="text" value={complemento} onChange={(e) => setComplemento(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" />
+                                <input type="text" value={complemento} onChange={(e) => setComplemento(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white" disabled={!isOnline} />
                             </div>
                         </div>
                     </div>
@@ -348,14 +362,15 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                                 rows={4}
                                 className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 outline-none focus:border-brand-500 transition-all font-medium text-slate-900 dark:text-white resize-none"
                                 placeholder="Anotações gerais sobre o cidadão..." 
+                                disabled={!isOnline}
                             />
                         </div>
                     </div>
 
                     <div className="flex gap-4 pt-4">
                         <button type="button" onClick={handleBackToList} className="flex-1 py-4 rounded-xl border border-slate-200 dark:border-white/10 font-bold text-slate-600 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">Cancelar</button>
-                        <button type="submit" disabled={isSaving} className="flex-[2] py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-70 transition-all">
-                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        <button type="submit" disabled={isSaving || !isOnline} className="flex-[2] py-4 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 flex items-center justify-center gap-2 disabled:opacity-70 transition-all">
+                            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : isOnline ? <Save className="w-5 h-5" /> : <CloudOff className="w-5 h-5" />}
                             {isEditing ? 'Salvar Alterações' : 'Cadastrar Cidadão'}
                         </button>
                     </div>
@@ -367,7 +382,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
 
   // --- LIST VIEW ---
   return (
-    <div className="flex flex-col h-full animate-in fade-in slide-in-from-left duration-300">
+    <div className="flex flex-col h-auto md:h-full animate-in fade-in slide-in-from-left duration-300">
         {/* Header & Filters */}
         <div className="flex flex-col gap-4 mb-4 shrink-0">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -425,8 +440,8 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
         </div>
 
         {/* Table / List */}
-        <div className="flex-1 min-h-0 bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col shadow-sm">
-            <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
+        <div className="flex-1 md:min-h-0 bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/10 md:overflow-hidden flex flex-col shadow-sm h-auto">
+            <div className="w-full md:flex-1 md:overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
                 {isLoadingList && (
                     <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm z-10 flex items-center justify-center">
                         <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
