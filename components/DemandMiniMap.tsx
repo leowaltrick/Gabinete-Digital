@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { MapPin, Maximize2 } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, CircleMarker } from 'react-leaflet';
 import * as L from 'leaflet';
 import { DemandStatus, DemandPriority } from '../types';
@@ -12,7 +12,6 @@ interface DemandMiniMapProps {
   lat?: number;
   lon?: number;
   address?: string; 
-  onClick?: (lat?: number, lon?: number) => void; // Made optional
   onLocationUpdate?: (lat: number, lon: number) => void;
   status?: DemandStatus;
   priority?: DemandPriority;
@@ -21,11 +20,9 @@ interface DemandMiniMapProps {
 const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ 
     lat, 
     lon, 
-    demandId,
-    entityId,
     tableName = 'demands',
     status,
-    priority
+    priority,
 }) => {
   const hasCoords = lat !== undefined && lon !== undefined && lat !== null && lon !== null && lat !== 0 && lon !== 0;
 
@@ -47,26 +44,6 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
       shadowSize: [41, 41]
   });
 
-  // --- ACTIONS ---
-  const handleExpandClick = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      if (hasCoords) {
-          // DISPATCH GLOBAL EVENT
-          // This bypasses prop drilling and works even if parent components are unmounting
-          const event = new CustomEvent('navigate-to-map', { 
-              detail: { 
-                  lat, 
-                  lon, 
-                  type: tableName,
-                  id: entityId || demandId // Pass ID to auto-filter on the map
-              } 
-          });
-          window.dispatchEvent(event);
-      }
-  };
-
   if (!hasCoords) {
       return (
         <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10">
@@ -78,17 +55,6 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
 
   return (
     <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-50 dark:bg-white/5">
-      
-      {/* Expand Button */}
-      <button 
-          type="button"
-          onClick={handleExpandClick}
-          className="absolute top-3 right-3 z-[1000] flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-white/10 px-3 py-1.5 rounded-lg shadow-md hover:scale-105 transition-all cursor-pointer pointer-events-auto"
-      >
-          <span className="text-[10px] font-bold text-brand-600 dark:text-brand-400 uppercase tracking-wider">Expandir</span>
-          <Maximize2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-      </button>
-
       {/* Map Layer - Static View */}
       <div className="h-full w-full z-0 pointer-events-none select-none">
           <MapContainer 

@@ -22,7 +22,8 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
     onEdit, 
     onCreateDemand,
     onNotification,
-    onSelectDemand
+    onSelectDemand,
+    onMapFocus
 }) => {
   const [history, setHistory] = useState<Demand[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);

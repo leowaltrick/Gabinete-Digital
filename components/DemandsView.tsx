@@ -5,13 +5,14 @@ import KanbanBoard from './KanbanBoard';
 import CalendarPage from './CalendarPage';
 import DemandTracker from './DemandTracker';
 import MapVisualizer from './MapVisualizer';
-import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon, Maximize2, Minimize2 } from 'lucide-react';
+import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import FilterBar from './FilterBar'; 
 import StatCard from './StatCard';
 import SegmentedControl from './SegmentedControl';
 import DemandDetailsModal from './DemandDetailsModal';
 import CitizenDetailsModal from './CitizenDetailsModal';
+import NeighborhoodList from './NeighborhoodList';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -69,6 +70,10 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   // Local state for Citizen Overlay
   const [previewCitizenId, setPreviewCitizenId] = useState<string | null>(null);
   
+  // Map Sidebar State
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Toggle
+
   // KPI Stats Calculation
   const kpiStats = useMemo(() => {
         const total = demands.length;
@@ -184,6 +189,45 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   const canNavigatePrev = currentSelectedIndex > 0;
   const canNavigateNext = currentSelectedIndex !== -1 && currentSelectedIndex < demands.length - 1;
 
+  // --- DATA PREPARATION FOR MAP SIDEBAR ---
+  const mapData = useMemo(() => {
+      if (viewMode !== 'map') return [];
+
+      if (mapViewMode === 'citizens') {
+          // Simply return citizens list
+          return citizens;
+      } else {
+          // Join Demand with Citizen Neighborhood
+          return demands.map(d => {
+              const citizen = citizens.find(c => c.id === d.citizenId);
+              return {
+                  ...d,
+                  bairro: citizen?.bairro, // Inject neighborhood
+                  citizenName: citizen?.name
+              };
+          });
+      }
+  }, [viewMode, mapViewMode, demands, citizens]);
+
+  // Filter Markers based on Sidebar Selection
+  const filteredMarkers = useMemo(() => {
+      if (!mapMarkers) return [];
+      if (!selectedNeighborhood) return mapMarkers; // Show all if none selected
+
+      // Needs to match the joined data logic
+      if (mapViewMode === 'citizens') {
+          const citizensInBairro = citizens.filter(c => c.bairro === selectedNeighborhood).map(c => c.id);
+          return mapMarkers.filter(m => m.type === 'citizen' && citizensInBairro.includes(m.id));
+      } else {
+          // Find demands in this neighborhood
+          const demandsInBairro = mapData
+            .filter((d: any) => d.bairro === selectedNeighborhood)
+            .map((d: any) => d.id);
+          return mapMarkers.filter(m => m.type === 'demand' && demandsInBairro.includes(m.id));
+      }
+  }, [mapMarkers, selectedNeighborhood, mapViewMode, mapData, citizens]);
+
+
   const renderHeader = () => {
       // HIDDEN IN MAP MODE
       if (viewMode === 'map') return null;
@@ -238,7 +282,10 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                       users={users} 
                       isMapMode={viewMode === 'map'}
                       mapViewMode={mapViewMode}
-                      onMapViewModeChange={setMapViewMode}
+                      onMapViewModeChange={(mode) => {
+                          setMapViewMode(mode);
+                          setSelectedNeighborhood(null); // Reset sidebar filter on mode switch
+                      }}
                   />
               </div>
           )}
@@ -287,16 +334,58 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                             onEditDemand={(d) => setSelectedDemandId(d.id)} 
                         />
                     )}
+                    
+                    {/* MAP VIEW - REFACTORED LAYOUT */}
                     {viewMode === 'map' && (
-                        <div className="h-[600px] md:h-full w-full rounded-3xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm relative">
-                             <MapVisualizer 
-                                defaultCenter={defaultLocation}
-                                onViewDemand={(id) => setSelectedDemandId(id)}
-                                preloadedMarkers={mapMarkers}
-                                currentViewMode={mapViewMode}
-                                onChangeViewMode={setMapViewMode}
-                                mapFocus={mapFocus}
-                            />
+                        <div className="h-full w-full rounded-3xl overflow-hidden border border-slate-200 dark:border-white/10 shadow-sm relative flex">
+                             
+                             {/* Desktop Sidebar (Left) */}
+                             <div className="hidden md:flex flex-col h-full shrink-0">
+                                 <NeighborhoodList 
+                                    items={mapData}
+                                    type={mapViewMode}
+                                    selectedNeighborhood={selectedNeighborhood}
+                                    onFilterNeighborhood={setSelectedNeighborhood}
+                                    onSelect={(item) => mapViewMode === 'demands' ? setSelectedDemandId(item.id) : handleCitizenClick(item.id)}
+                                 />
+                             </div>
+
+                             {/* Mobile Sidebar (Drawer) */}
+                             <div className={`fixed inset-0 z-[60] md:hidden transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                                 <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
+                                 <div className={`absolute top-0 bottom-0 left-0 w-80 bg-white dark:bg-slate-900 shadow-2xl transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                                     <NeighborhoodList 
+                                        items={mapData}
+                                        type={mapViewMode}
+                                        selectedNeighborhood={selectedNeighborhood}
+                                        onFilterNeighborhood={(n) => { setSelectedNeighborhood(n); setIsSidebarOpen(false); }}
+                                        onSelect={(item) => { 
+                                            mapViewMode === 'demands' ? setSelectedDemandId(item.id) : handleCitizenClick(item.id);
+                                            setIsSidebarOpen(false);
+                                        }}
+                                     />
+                                 </div>
+                             </div>
+
+                             {/* Map Container */}
+                             <div className="flex-1 relative h-full w-full">
+                                 <MapVisualizer 
+                                    defaultCenter={defaultLocation}
+                                    onViewDemand={(id) => setSelectedDemandId(id)}
+                                    preloadedMarkers={filteredMarkers} // Pass FILTERED markers
+                                    currentViewMode={mapViewMode}
+                                    onChangeViewMode={setMapViewMode}
+                                    mapFocus={mapFocus}
+                                />
+                                
+                                {/* Mobile Sidebar Toggle */}
+                                <button 
+                                    onClick={() => setIsSidebarOpen(true)}
+                                    className="md:hidden absolute top-4 left-4 z-[400] p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-white/10 text-brand-600 dark:text-brand-400"
+                                >
+                                    <PanelLeftOpen className="w-6 h-6" />
+                                </button>
+                             </div>
                         </div>
                     )}
               </div>
@@ -342,7 +431,6 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                   setPreviewCitizenId(null); // Close citizen modal
                   setSelectedDemandId(d.id); // Open demand modal
               }}
-              onMapFocus={onMapFocus}
           />
       )}
     </div>
