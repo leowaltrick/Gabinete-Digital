@@ -145,6 +145,23 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                     </div>
                 </div>
 
+                {isNewUser && (
+                    <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-500/20 p-4 rounded-2xl flex items-start gap-3 mt-4">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl shrink-0">
+                            <KeyRound className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">Credenciais Iniciais</h4>
+                            <p className="text-xs text-slate-500 dark:text-white/60 mt-1">
+                                A senha padrão para novos usuários será <span className="font-mono font-bold text-slate-700 dark:text-white bg-white dark:bg-white/10 px-1.5 py-0.5 rounded border border-slate-200 dark:border-white/5 select-all">Senha4321</span>.
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                                O sistema solicitará a troca da senha automaticamente no primeiro acesso do usuário.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {!isNewUser && (
                     <div className="pt-6 border-t border-slate-100 dark:border-white/5">
                         <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-white/50 mb-4 flex items-center gap-2">
