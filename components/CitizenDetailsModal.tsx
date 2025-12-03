@@ -12,7 +12,7 @@ interface CitizenDetailsModalProps {
   onEdit: () => void;
   onCreateDemand: () => void;
   onNotification?: (type: 'success' | 'error', message: string) => void;
-  onSelectDemand?: (demand: Demand) => void; // New prop to handle navigation
+  onSelectDemand?: (demand: Demand) => void; 
   onMapFocus?: (lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => void;
 }
 
@@ -22,8 +22,7 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
     onEdit, 
     onCreateDemand,
     onNotification,
-    onSelectDemand,
-    onMapFocus
+    onSelectDemand
 }) => {
   const [history, setHistory] = useState<Demand[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -64,25 +63,6 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
       };
       fetchHistory();
   }, [citizen.id]);
-
-  const handleMapClick = (lat?: number, lon?: number) => {
-      // Use passed coords (from map component) or fallback to citizen prop
-      const targetLat = lat ?? citizen.lat;
-      const targetLon = lon ?? citizen.lon;
-      
-      const hasCoords = targetLat !== null && targetLat !== undefined && targetLon !== null && targetLon !== undefined;
-      
-      if (hasCoords && onMapFocus) {
-          onClose(); // Fecha o modal atual
-          // Pass 'citizens' type and the citizen ID for filtering
-          onMapFocus(targetLat!, targetLon!, 'citizens', citizen.id); 
-      } else {
-          // Se não houver coordenadas ou função, não faz nada ou avisa
-          if (onNotification && !hasCoords) {
-              onNotification('error', 'Localização não disponível para navegação.');
-          }
-      }
-  };
 
   const openWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -214,7 +194,6 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
                                         lat={citizen.lat} 
                                         lon={citizen.lon} 
                                         address={getFullAddress()}
-                                        onClick={handleMapClick}
                                     />
                                 </div>
                             </div>

@@ -11,8 +11,8 @@ interface DemandMiniMapProps {
   tableName?: 'demands' | 'citizens';
   lat?: number;
   lon?: number;
-  address?: string; // Kept for interface compatibility but not used for fetching anymore
-  onClick: (lat?: number, lon?: number) => void;
+  address?: string; 
+  onClick?: (lat?: number, lon?: number) => void; // Made optional
   onLocationUpdate?: (lat: number, lon: number) => void;
   status?: DemandStatus;
   priority?: DemandPriority;
@@ -24,13 +24,9 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
     demandId,
     entityId,
     tableName = 'demands',
-    onClick, 
     status,
     priority
 }) => {
-  // Logic removed: No more internal state or effects for fetching.
-  // The component now relies solely on props passed from parent.
-
   const hasCoords = lat !== undefined && lon !== undefined && lat !== null && lon !== null && lat !== 0 && lon !== 0;
 
   // Dynamic Icon Logic
@@ -53,12 +49,12 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
 
   // --- ACTIONS ---
   const handleExpandClick = (e: React.MouseEvent) => {
-      e.stopPropagation();
       e.preventDefault();
+      e.stopPropagation();
       
       if (hasCoords) {
           // DISPATCH GLOBAL EVENT
-          // This bypasses prop drilling and modal focus issues by notifying the root App component directly
+          // This bypasses prop drilling and works even if parent components are unmounting
           const event = new CustomEvent('navigate-to-map', { 
               detail: { 
                   lat, 
@@ -68,9 +64,6 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
               } 
           });
           window.dispatchEvent(event);
-
-          // Call local onClick as fallback/complement if needed
-          onClick(lat, lon);
       }
   };
 
@@ -96,7 +89,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
           <Maximize2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
       </button>
 
-      {/* Map Layer */}
+      {/* Map Layer - Static View */}
       <div className="h-full w-full z-0 pointer-events-none select-none">
           <MapContainer 
               key={`${lat}-${lon}-${tableName}`} 

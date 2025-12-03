@@ -329,7 +329,11 @@ const App: React.FC = () => {
                 handleMapFocus(lat, lon, targetType, targetId);
             } else if (targetId && targetType === 'demands') {
                 // Fallback for ID only (filters but no zoom if no coords)
-                setSelectedDemandId(targetId);
+                setSelectedDemandId(null);
+                setEditingDemand(null);
+                setSelectedCitizenId(null);
+                // We don't zoom if no lat/lon, just filter
+                setFilters(prev => ({ ...prev, search: targetId }));
                 setView('map');
             }
         };
@@ -589,26 +593,22 @@ const App: React.FC = () => {
 
     const currentRoleConfig = currentUser ? (systemConfig[currentUser.role] || DEFAULT_SYSTEM_CONFIG['assessor']) : DEFAULT_SYSTEM_CONFIG['administrador']; 
 
-    // Render components helper
     const renderRecentActivity = () => ( <div className="space-y-2"> {dashboardScope === 'demands' ? ( recentDemands.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><FilePlus className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentDemands.map(d => ( <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex flex-col items-center justify-center text-brand-600 dark:text-brand-400 font-bold shrink-0 border border-brand-100 dark:border-brand-500/20"> <span className="text-xs">{new Date(d.createdAt).getDate()}</span> <span className="text-[8px] uppercase">{new Date(d.createdAt).toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4> <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${d.status === 'Concluído' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : d.status === 'Em Andamento' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'}`}> {d.status} </span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p> </div> </div> )) ) : ( recentCitizens.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><Users className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentCitizens.map(c => ( <div key={c.id} onClick={() => { handleViewCitizen(c.id); }} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0 border border-blue-100 dark:border-blue-500/20"> <span className="text-xs">{new Date(c.createdAt || Date.now()).getDate()}</span> <span className="text-[8px] uppercase">{new Date(c.createdAt || Date.now()).toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{c.name}</h4> <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"> {c.phone ? formatPhone(c.phone) : 'Sem Tel'} </span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 flex items-center gap-1"> {c.bairro && <><MapPin className="w-2.5 h-2.5" /> {c.bairro}</>} </p> </div> </div> )) )} </div> );
     const renderUpcoming = () => ( <div className="space-y-2"> {dashboardScope === 'demands' ? ( upcomingDeadlines.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><CheckCircle2 className="w-6 h-6 mb-2 opacity-20" />Tudo em dia!</div> : upcomingDeadlines.map(d => { const daysLeft = Math.ceil((d.date.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)); return ( <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-bold shrink-0 border border-amber-100 dark:border-amber-500/20"> <span className="text-xs">{d.date.getDate()}</span> <span className="text-[8px] uppercase">{d.date.toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4> <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${daysLeft <= 2 ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-slate-100 text-slate-600 dark:bg-white/10'}`}>{daysLeft < 0 ? 'Exp.' : `${daysLeft}d`}</span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p> </div> </div> ); }) ) : ( neighborhoodStats.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><MapPin className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : neighborhoodStats.slice(0,5).map((n, i) => ( <div key={i} className="flex justify-between items-center p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5"> <div className="flex items-center gap-3"> <span className="text-xs font-bold text-slate-400 w-4">{i + 1}</span> <span className="text-xs font-bold text-slate-700 dark:text-white">{n.label}</span> </div> <span className="text-[10px] font-bold bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 px-2 py-1 rounded-full">{n.value}</span> </div> )) )} </div> );
 
     return (
         <div className={`flex h-screen bg-slate-50 dark:bg-[#020617] transition-colors duration-500 overflow-hidden ${isDarkMode ? 'dark' : ''}`}>
              
-             {/* LOGIN OVERLAY */}
              {!currentUser && (
                  <div className="absolute inset-0 z-[100]">
                     <AuthScreen onLogin={handleLogin} />
                  </div>
              )}
 
-             {/* ONBOARDING OVERLAY */}
              {showOnboarding && currentUser && (
                  <OnboardingTutorial onFinish={() => setShowOnboarding(false)} />
              )}
 
-             {/* DASHBOARD ROOT - Always rendered (Blurred if logged out) */}
              <div className={`dashboard-root flex h-full w-full transition-all duration-700 ease-in-out ${!currentUser ? 'blur-[5px] scale-[1.02] pointer-events-none grayscale-[0.2]' : 'filter-none scale-100 opacity-100'}`}>
                 
                 <Sidebar 
@@ -622,31 +622,26 @@ const App: React.FC = () => {
                     showMobileDock={isMobileNavVisible}
                 />
                 
-                {/* Main Content Area - Applied Glass Style to Container */}
                 <main className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative lg:my-4 lg:mr-4 lg:ml-4`}>
                     
-                    {/* Offline Banner */}
                     {!isOnline && (
                         <div className="absolute top-0 left-0 right-0 z-[1000] bg-amber-500/90 backdrop-blur-sm text-white text-xs font-bold text-center py-1.5 flex items-center justify-center gap-2 lg:rounded-t-[2.5rem]">
                             <WifiOff className="w-3 h-3" /> Modo Offline. As alterações serão salvas localmente.
                         </div>
                     )}
 
-                    {/* MAIN CONTENT GLASS CONTAINER */}
                     <div className="flex-1 relative overflow-hidden flex flex-col glass-container rounded-[2.5rem]">
                         
                         {notification && <div className={`fixed top-6 right-6 z-[1000] px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-right duration-300 ${notification.type === 'success' ? 'bg-green-500 text-white border-green-600' : 'bg-red-500 text-white border-red-600'}`}>{notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}<span className="font-bold text-sm">{notification.message}</span></div>}
 
                         <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-brand-500"/></div>}>
                             
-                            {/* SCROLLABLE VIEW - Now handles map too */}
                             {['dashboard', 'new-demand', 'edit-demand', 'admin_panel', 'demands', 'people', 'map'].includes(view) && (
                                 <div 
                                     className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 lg:p-6 pb-32 lg:pb-6"
                                     onScroll={handleScroll}
                                     ref={mainScrollRef}
                                 >
-                                    {/* Mobile Spacer */}
                                     <div className="lg:hidden h-2 w-full"></div>
 
                                     {view === 'dashboard' && (
@@ -664,7 +659,6 @@ const App: React.FC = () => {
                                                 className="sticky top-0 z-30" 
                                             />
                                             
-                                            {/* KPI CARDS - Added Loading Prop */}
                                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
                                                 <StatCard isLoading={isDataLoading} title={kpiStats.stat1.label} value={typeof kpiStats.stat1.value === 'string' ? 0 : kpiStats.stat1.value} subValue={typeof kpiStats.stat1.value === 'string' ? kpiStats.stat1.value : undefined} icon={kpiStats.stat1.icon} colorClass={kpiStats.stat1.color} textClass={kpiStats.stat1.text} />
                                                 <StatCard isLoading={isDataLoading} title={kpiStats.stat2.label} value={typeof kpiStats.stat2.value === 'string' ? 0 : kpiStats.stat2.value} subValue={typeof kpiStats.stat2.value === 'string' ? kpiStats.stat2.value : undefined} icon={kpiStats.stat2.icon} colorClass={kpiStats.stat2.color} textClass={kpiStats.stat2.text} />
@@ -696,7 +690,6 @@ const App: React.FC = () => {
                                                 </div>
                                             )}
                                             
-                                            {/* SPLIT LAYOUT FOR LISTS */}
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
                                                 <div className={`glass-panel p-5 rounded-2xl flex flex-col h-full min-h-[300px] border border-slate-200 dark:border-white/10 ${infoBlockTab !== 'activity' ? 'hidden lg:flex' : 'flex'}`}>
                                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
@@ -737,7 +730,6 @@ const App: React.FC = () => {
                                     )}
                                     {view === 'admin_panel' && currentUser && <AdminScreen currentUser={currentUser} systemConfig={systemConfig} onUpdateConfig={setSystemConfig} onUpdateLocation={setWeatherLocations} onNotification={showNotification} onLogout={handleLogout} toggleTheme={handleThemeToggle} isDarkMode={isDarkMode} />}
                                     
-                                    {/* Consolidated Map View - Now handled like Demands View to prevent expansion */}
                                     {(view === 'demands' || view === 'map') && (
                                         <DemandsView 
                                             demands={filteredDemands} 
