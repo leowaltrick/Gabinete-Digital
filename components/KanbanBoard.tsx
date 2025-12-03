@@ -43,7 +43,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ demands, citizens, onViewDema
   };
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500">
+    <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 pb-24 md:pb-0">
         {/* Mobile Tabs (Portrait Only) */}
         <div className="md:hidden landscape:hidden px-1 pb-3 shrink-0">
             <SegmentedControl 

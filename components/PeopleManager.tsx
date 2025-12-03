@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLeft, X, Filter, MapPin, BarChart3, FileText, AlignLeft } from 'lucide-react';
+import { Search, Loader2, Users, UserPlus, ArrowRight, Download, Save, ChevronLeft, X, Filter, MapPin, BarChart3, FileText, AlignLeft, Phone, Mail } from 'lucide-react';
 import { Pessoa, Demand, DemandStatus, Citizen, RoleConfig } from '../types';
 import { formatPhone, stripNonDigits, formatCEP } from '../utils/cpfValidation';
 import { downloadCSV } from '../utils/exportUtils';
@@ -161,9 +161,6 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
               const fullAddress = `${logradouro}, ${numero} - ${bairro}, ${cidade} - ${estado}`;
               let coords = { lat: 0, lon: 0 };
               
-              // Only fetch if editing address OR new record
-              // Reuse existing coords if just editing name/phone but address same? 
-              // Simplification: Always fetch for now to ensure accuracy or if user fixed a typo in address
               const fetched = await getCoordinates(fullAddress);
               if (fetched) coords = fetched;
 
@@ -256,7 +253,7 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{isEditing ? 'Editar Cidadão' : 'Novo Cidadão'}</h2>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-1 pb-24 md:pb-0">
                 <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 pb-20">
                     <div className="glass-panel p-6 rounded-3xl border border-slate-200 dark:border-white/10 space-y-6">
                         <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400 font-bold uppercase text-xs tracking-wider border-b border-slate-100 dark:border-white/5 pb-2">
@@ -429,14 +426,15 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
 
         {/* Table / List */}
         <div className="flex-1 min-h-0 bg-white/50 dark:bg-slate-900/50 rounded-3xl border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col shadow-sm">
-            <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+            <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-24 md:pb-0">
                 {isLoadingList && (
                     <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm z-10 flex items-center justify-center">
                         <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
                     </div>
                 )}
                 
-                <table className="w-full text-left border-collapse">
+                {/* Desktop Table View */}
+                <table className="w-full text-left border-collapse hidden md:table">
                     <thead className="sticky top-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-md z-10 shadow-sm">
                         <tr className="border-b border-slate-200 dark:border-white/10 text-xs font-bold text-slate-500 dark:text-blue-200/50 uppercase tracking-wider">
                             <th className="p-4 pl-6">Nome / Contato</th>
@@ -498,6 +496,58 @@ const PeopleManager: React.FC<PeopleManagerProps> = ({
                         )}
                     </tbody>
                 </table>
+
+                {/* Mobile Grid/Card View */}
+                <div className="md:hidden space-y-3 p-3">
+                    {currentPeople.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 dark:text-white/40 italic">
+                            Nenhum cidadão encontrado.
+                        </div>
+                    ) : (
+                        currentPeople.map(person => {
+                            const hasDemand = demands.some(d => d.citizenId === person.id);
+                            return (
+                                <div key={person.id} onClick={() => handleViewDetails(person)} className="glass-panel p-4 rounded-2xl border border-slate-200 dark:border-white/10 shadow-sm active:scale-[0.98] transition-all cursor-pointer relative overflow-hidden group">
+                                    <div className={`absolute top-0 left-0 w-1 h-full ${hasDemand ? 'bg-blue-500' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
+                                    <div className="flex items-center gap-3 mb-3 pl-3">
+                                        <div className="w-12 h-12 rounded-full bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-xl border border-brand-200 dark:border-brand-500/30 shrink-0 shadow-sm">
+                                            {person.nome.charAt(0)}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start">
+                                                <h4 className="font-bold text-slate-900 dark:text-white truncate">{person.nome} {person.sobrenome}</h4>
+                                                {new Date(person.created_at || '').toDateString() === new Date().toDateString() && (
+                                                    <span className="text-[9px] font-bold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 px-2 py-0.5 rounded-full shrink-0">NOVO</span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-slate-500 dark:text-white/50 font-mono mt-0.5">{formatPhone(person.telefone || '')}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="pl-3 grid grid-cols-2 gap-2 text-xs">
+                                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-white/70">
+                                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                                            <span className="truncate">{person.bairro || 'Sem Bairro'}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-white/70 justify-end">
+                                            <FileText className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>{hasDemand ? 'Tem Demandas' : 'Sem Demandas'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-white/5 flex justify-between items-center pl-3">
+                                        <span className="text-[10px] text-slate-400 dark:text-white/30 font-medium">
+                                            Cadastro: {new Date(person.created_at || '').toLocaleDateString()}
+                                        </span>
+                                        <div className="text-brand-600 text-xs font-bold flex items-center gap-1">
+                                            Detalhes <ArrowRight className="w-3 h-3" />
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
             </div>
             
             <div className="bg-slate-50/80 dark:bg-slate-900/80 border-t border-slate-200 dark:border-white/10 shrink-0">

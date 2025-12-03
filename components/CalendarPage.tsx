@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Clock, Calendar as CalendarIcon, AlertCircle, CheckSquare, Megaphone, Info, AlertTriangle } from 'lucide-react';
 import { Demand, DemandPriority, DemandStatus, DemandInteraction, Notice } from '../types';
@@ -156,7 +155,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
   };
 
   return (
-    <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 overflow-hidden">
+    <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 overflow-hidden pb-24 md:pb-0">
       
       {/* Filters Bar */}
       <div className="flex flex-wrap gap-2 mb-4 shrink-0">

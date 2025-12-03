@@ -5,7 +5,7 @@ import KanbanBoard from './KanbanBoard';
 import CalendarPage from './CalendarPage';
 import DemandTracker from './DemandTracker';
 import MapVisualizer from './MapVisualizer';
-import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Kanban, CalendarRange, List, LayoutList, PlusCircle, Database, Clock, CheckCircle2, Zap, Map as MapIcon, PanelLeftOpen } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import FilterBar from './FilterBar'; 
 import StatCard from './StatCard';
@@ -209,6 +209,12 @@ const DemandsView: React.FC<DemandsViewProps> = ({
       }
   }, [viewMode, mapViewMode, demands, citizens]);
 
+  // Compute available tags for filter
+  const availableTags = useMemo(() => {
+      const allTags = demands.flatMap(d => d.tags || []);
+      return Array.from(new Set(allTags)).sort();
+  }, [demands]);
+
   // Filter Markers based on Sidebar Selection
   const filteredMarkers = useMemo(() => {
       if (!mapMarkers) return [];
@@ -350,6 +356,8 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                                     onSelect={(item) => mapViewMode === 'demands' ? setSelectedDemandId(item.id) : handleCitizenClick(item.id)}
                                     filters={filters}
                                     setFilters={setFilters}
+                                    users={users}
+                                    availableTags={availableTags}
                                  />
                              </div>
 
@@ -368,6 +376,9 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                                         }}
                                         filters={filters}
                                         setFilters={setFilters}
+                                        users={users}
+                                        availableTags={availableTags}
+                                        onClose={() => setIsSidebarOpen(false)}
                                      />
                                  </div>
                              </div>
@@ -384,12 +395,14 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                                 />
                                 
                                 {/* Mobile Sidebar Toggle */}
-                                <button 
-                                    onClick={() => setIsSidebarOpen(true)}
-                                    className="md:hidden absolute top-4 left-4 z-[400] p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-white/10 text-brand-600 dark:text-brand-400"
-                                >
-                                    <PanelLeftOpen className="w-6 h-6" />
-                                </button>
+                                {!isSidebarOpen && (
+                                    <button 
+                                        onClick={() => setIsSidebarOpen(true)}
+                                        className="md:hidden absolute top-4 left-4 z-[400] p-3 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-white/10 text-brand-600 dark:text-brand-400"
+                                    >
+                                        <PanelLeftOpen className="w-6 h-6" />
+                                    </button>
+                                )}
                              </div>
                         </div>
                     )}
