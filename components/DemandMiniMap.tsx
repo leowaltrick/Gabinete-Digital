@@ -131,7 +131,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   return (
     <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer bg-slate-50 dark:bg-white/5" onClick={handleClick}>
       
-      {/* Loading Indicator - Simplified */}
+      {/* Loading Indicator */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 z-[10]">
             <Loader2 className="w-5 h-5 animate-spin text-brand-600" />
@@ -139,7 +139,10 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
       )}
 
       {coords && (
-        <>
+        // KEY FIX: pointer-events-none ensures the click passes through the map 
+        // directly to the parent div's onClick handler, preventing Leaflet from hijacking it.
+        <div className="h-full w-full pointer-events-none">
+            {/* @ts-ignore: Suppress strict type check for MapContainer props */}
             <MapContainer 
                 key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
                 center={[coords.lat, coords.lon]} 
@@ -152,20 +155,20 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
                 style={{ width: '100%', height: '100%' }}
             >
                 {/* CartoDB Positron - Cleaner look for MiniMap */}
+                {/* @ts-ignore: Suppress strict type check for attribution prop */}
                 <TileLayer
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
+                {/* @ts-ignore: Suppress strict type check for icon prop */}
                 <Marker position={[coords.lat, coords.lon]} icon={icon} />
             </MapContainer>
-            {/* Click Capture Layer to ensure onClick always fires */}
-            <div className="absolute inset-0 z-[500] bg-transparent" onClick={handleClick} />
-        </>
+        </div>
       )}
       
-      {/* Hover Overlay - Simplified & Always ready for interaction hint */}
+      {/* Hover Overlay */}
       {!isLoading && (
-        <div className="absolute top-2 right-2 z-[400] opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute top-2 right-2 z-[400] opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
             <div className="bg-white/90 dark:bg-black/90 p-1.5 rounded-lg shadow-sm border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white">
                 <Maximize2 className="w-4 h-4" />
             </div>

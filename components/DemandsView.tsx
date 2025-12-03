@@ -11,6 +11,7 @@ import FilterBar from './FilterBar';
 import StatCard from './StatCard';
 import SegmentedControl from './SegmentedControl';
 import DemandDetailsModal from './DemandDetailsModal';
+import CitizenDetailsModal from './CitizenDetailsModal';
 
 interface DemandsViewProps {
   demands: Demand[];
@@ -33,6 +34,7 @@ interface DemandsViewProps {
   mapMarkers?: any[]; 
   mapFocus?: { lat: number; lon: number } | null;
   initialMapViewMode?: 'demands' | 'citizens';
+  onMapFocus?: (lat: number, lon: number, type: 'demands' | 'citizens', id?: string) => void;
 }
 
 const DemandsView: React.FC<DemandsViewProps> = ({ 
@@ -55,13 +57,17 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   onViewCitizen,
   mapMarkers,
   mapFocus,
-  initialMapViewMode = 'demands'
+  initialMapViewMode = 'demands',
+  onMapFocus
 }) => {
   const [viewMode, setViewMode] = useState<'list' | 'board' | 'calendar' | 'map'>(initialViewMode);
   const [mapViewMode, setMapViewMode] = useState<'demands' | 'citizens'>('demands');
   const [notices, setNotices] = useState<Notice[]>([]);
   const [timeRange, setTimeRange] = useState('all'); 
   const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+  
+  // Local state for Citizen Overlay
+  const [previewCitizenId, setPreviewCitizenId] = useState<string | null>(null);
   
   // KPI Stats Calculation
   const kpiStats = useMemo(() => {
@@ -79,6 +85,10 @@ const DemandsView: React.FC<DemandsViewProps> = ({
 
         return { total, pending, completed, highPriority };
   }, [demands]);
+
+  const previewCitizen = useMemo(() => 
+      citizens.find(c => c.id === previewCitizenId), 
+  [citizens, previewCitizenId]);
 
   // Handle Initial Selection (Deep Linking / Dashboard Click)
   useEffect(() => {
@@ -165,6 +175,11 @@ const DemandsView: React.FC<DemandsViewProps> = ({
     }
   };
 
+  const handleCitizenClick = (id: string) => {
+      // Instead of navigating away, open the overlay
+      setPreviewCitizenId(id);
+  };
+
   const currentSelectedIndex = selectedDemandId ? demands.findIndex(d => d.id === selectedDemandId) : -1;
   const canNavigatePrev = currentSelectedIndex > 0;
   const canNavigateNext = currentSelectedIndex !== -1 && currentSelectedIndex < demands.length - 1;
@@ -248,7 +263,7 @@ const DemandsView: React.FC<DemandsViewProps> = ({
                             clearSelection={clearSelection}
                             onInteractionUpdate={onInteractionUpdate}
                             onNotification={onNotification}
-                            onViewCitizen={onViewCitizen}
+                            onViewCitizen={handleCitizenClick}
                         />
                     )}
                     {viewMode === 'board' && (
@@ -299,7 +314,30 @@ const DemandsView: React.FC<DemandsViewProps> = ({
               canNavigatePrev={canNavigatePrev}
               canNavigateNext={canNavigateNext}
               onNotification={onNotification}
-              onViewCitizen={onViewCitizen}
+              onViewCitizen={handleCitizenClick}
+              onMapFocus={onMapFocus}
+          />
+      )}
+
+      {/* Citizen Details Overlay (Opens over Grid and Demand Modal) */}
+      {previewCitizen && (
+          <CitizenDetailsModal
+              citizen={previewCitizen}
+              onClose={() => setPreviewCitizenId(null)}
+              onEdit={() => {
+                  setPreviewCitizenId(null);
+                  if (onViewCitizen) onViewCitizen(previewCitizen.id); // Navigate to People Manager for edit
+              }}
+              onCreateDemand={() => {
+                  setPreviewCitizenId(null);
+                  onCreateDemand();
+              }}
+              onNotification={onNotification}
+              onSelectDemand={(d) => {
+                  setPreviewCitizenId(null); // Close citizen modal
+                  setSelectedDemandId(d.id); // Open demand modal
+              }}
+              onMapFocus={onMapFocus}
           />
       )}
     </div>
