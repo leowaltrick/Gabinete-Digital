@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState } from 'react';
-import { MapPin, Maximize2, Loader2 } from 'lucide-react';
+import { MapPin, Maximize2, Loader2, ExternalLink } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import * as L from 'leaflet';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
@@ -125,9 +124,9 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   return (
     <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-50 dark:bg-white/5">
       
-      {/* 1. Map Layer (Visuals Only) */}
+      {/* 1. Map Layer - Static Visualization */}
       {coords && (
-        <div className="h-full w-full z-0">
+        <div className="h-full w-full z-0 pointer-events-none">
             {/* @ts-ignore: Suppress strict type check for MapContainer props */}
             <MapContainer 
                 key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
@@ -135,8 +134,11 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
                 zoom={15} 
                 scrollWheelZoom={false} 
                 zoomControl={false}
-                dragging={false}
-                doubleClickZoom={false}
+                dragging={false} // Disabled
+                touchZoom={false} // Disabled
+                doubleClickZoom={false} // Disabled
+                boxZoom={false} // Disabled
+                keyboard={false} // Disabled
                 attributionControl={false}
                 style={{ width: '100%', height: '100%' }}
             >
@@ -159,23 +161,21 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
         </div>
       )}
       
-      {/* 3. Click Overlay - THE FIX */}
-      {/* This transparent div sits on top of everything and captures the click event */}
-      {!isLoading && (
-        <div 
+      {/* 3. Explicit Expand Button - Primary Interaction */}
+      {!isLoading && coords && (
+        <button 
+            type="button"
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onClick();
             }}
-            className="absolute inset-0 z-[500] cursor-pointer bg-transparent transition-all duration-300 hover:bg-black/5 flex items-center justify-center"
-            title="Expandir Mapa"
+            className="absolute top-3 right-3 z-[400] pointer-events-auto flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-white/10 px-3 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all group/btn hover:scale-105 active:scale-95"
+            title="Ver no mapa completo"
         >
-            {/* Hover Icon */}
-            <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-90 group-hover:scale-100 bg-white/90 dark:bg-black/90 p-2.5 rounded-full shadow-lg border border-slate-200 dark:border-white/10 text-brand-600 dark:text-white">
-                <Maximize2 className="w-5 h-5" />
-            </div>
-        </div>
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider group-hover/btn:text-brand-600 dark:group-hover/btn:text-brand-400">Expandir</span>
+            <Maximize2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+        </button>
       )}
     </div>
   );
