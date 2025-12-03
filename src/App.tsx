@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback, Suspense, useRef } from 'react';
 import { Database, AlertTriangle, Clock, CheckCircle2, Activity, FilePlus, Zap, TrendingUp, ArrowUpRight, Calendar, Filter, PieChart, BarChart2, ChevronDown, X, AlertCircle, MapPin, Loader2, LogOut, Sun, Moon, User as UserIcon, Wifi, WifiOff, CloudOff, Users, ArrowRight, Phone, Mail, UserPlus, BarChart3 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -8,6 +7,7 @@ import AuthScreen from '@/components/AuthScreen';
 import DemandsView from '@/components/DemandsView';
 import WeatherWidget from '@/components/WeatherWidget';
 import MobileFastTrack from '@/components/MobileFastTrack';
+import OnboardingTutorial from '@/components/OnboardingTutorial';
 import { ViewState, Citizen, Demand, DemandLevel, DemandStatus, DemandPriority, User, FilterState, SystemConfig, DemandInteraction, WeatherLocation, DashboardWidgetsConfig, DemandType, ThemeMode, DashboardStats } from '@/types';
 import { supabase, isSupabaseConfigured } from '@/services/supabaseClient';
 import { formatDate, formatPhone } from '@/utils/cpfValidation';
@@ -157,13 +157,11 @@ const App: React.FC = () => {
 
     const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_SYSTEM_CONFIG);
     const [filters, setFilters] = useState<FilterState>({
-        search: '', level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: []
+        search: '', level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: [], responsibleId: undefined
     });
 
     const [editingDemand, setEditingDemand] = useState<Demand | null>(null);
     const [selectedCitizenId, setSelectedCitizenId] = useState<string | null>(null);
-    
-    // NEW STATE: Selected Demand ID for View Modal (shared)
     const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
     
     // NEW STATE: Map Focus for Citizen Navigation
@@ -172,6 +170,9 @@ const App: React.FC = () => {
 
     const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
     const [initialDemandView, setInitialDemandView] = useState<'list' | 'board' | 'calendar' | 'map'>('list');
+    
+    // Onboarding State
+    const [showOnboarding, setShowOnboarding] = useState(false);
 
     // Use Custom Hook for Data
     const { 
@@ -180,6 +181,17 @@ const App: React.FC = () => {
         users, interactions, weatherLocations, setWeatherLocations, 
         dbStats, isOnline, isLoading: isDataLoading, themePreference, fetchData, processOfflineQueue, syncCount 
     } = useOfflineData(currentUser);
+
+    // Check for onboarding on load/login
+    // Strictly tied to the `firstLogin` flag set by AuthScreen based on `last_login` DB field
+    useEffect(() => {
+        if (currentUser && currentUser.firstLogin) {
+            const hasSeenOnboarding = localStorage.getItem('geo_onboarding_completed');
+            if (!hasSeenOnboarding) {
+                setShowOnboarding(true);
+            }
+        }
+    }, [currentUser]);
 
     // Sync Theme from DB if available
     useEffect(() => {
@@ -192,18 +204,14 @@ const App: React.FC = () => {
         let endTimestamp: number | null = null;
 
         if (filters.startDate) {
-            // Create start date at 00:00:00 Local Time
-            const [y, m, d] = filters.startDate.split('-').map(Number);
-            const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+            const start = new Date(filters.startDate + 'T00:00:00');
             startTimestamp = start.getTime();
 
-            // Create end date at 23:59:59 Local Time
             if (filters.endDate) {
-                const [ey, em, ed] = filters.endDate.split('-').map(Number);
-                const end = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+                const end = new Date(filters.endDate + 'T23:59:59.999');
                 endTimestamp = end.getTime();
             } else {
-                const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+                const end = new Date(filters.startDate + 'T23:59:59.999');
                 endTimestamp = end.getTime();
             }
         }
@@ -233,7 +241,6 @@ const App: React.FC = () => {
             // Date Filter
             if (startTimestamp !== null && endTimestamp !== null) {
                 let dateToCompare: string | undefined;
-                
                 if (filters.dateType === 'deadline') dateToCompare = d.deadline;
                 else if (filters.dateType === 'updatedAt') dateToCompare = d.updatedAt;
                 else dateToCompare = d.createdAt;
@@ -271,13 +278,11 @@ const App: React.FC = () => {
     // 3. MAP MARKERS - Now uses FILTERED data
     const precalculatedMapMarkers = useMemo(() => {
         const markers: any[] = [];
-        
         if (filteredDemands.length > 0) {
              filteredDemands.forEach(d => {
                  if (d.lat && d.lon) markers.push({ id: d.id, type: 'demand', lat: d.lat, lon: d.lon, title: d.title, status: d.status, priority: d.priority });
              });
         }
-
         if (filteredCitizens.length > 0) {
              filteredCitizens.forEach(c => {
                  if (c.lat && c.lon) markers.push({ id: c.id, type: 'citizen', lat: c.lat, lon: c.lon, name: c.name, bairro: c.bairro });
@@ -289,12 +294,18 @@ const App: React.FC = () => {
     // Initial Load
     useEffect(() => {
         const handleMapNav = (e: CustomEvent) => {
+            setIsMobileNavVisible(true);
+            setSelectedDemandId(null);
+            setEditingDemand(null);
+
             if (e.detail?.demandId) {
+                if (e.detail.lat && e.detail.lon) {
+                    setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
+                }
                 setInitialMapViewMode('demands');
                 setView('map'); 
             } else if (e.detail?.citizenId) {
                 if (e.detail.lat && e.detail.lon) {
-                    // Update state synchronously to prevent race condition
                     setMapFocus({ lat: e.detail.lat, lon: e.detail.lon });
                 }
                 setInitialMapViewMode('citizens');
@@ -314,9 +325,9 @@ const App: React.FC = () => {
 
     // RESET SCROLL ON NAVIGATE
     useEffect(() => {
+        setIsMobileNavVisible(true);
         if (mainScrollRef.current) {
             mainScrollRef.current.scrollTo(0, 0);
-            setIsMobileNavVisible(true);
         }
     }, [view]);
 
@@ -361,12 +372,14 @@ const App: React.FC = () => {
 
     const handleLogin = (user: User) => {
         setCurrentUser(user);
+        setView('dashboard'); // Force view reset to Dashboard
     };
 
     const handleLogout = () => { 
         setCurrentUser(null); 
         localStorage.removeItem('geo_user');
         setDemands([]); 
+        setView('dashboard'); // Reset view for next login
     };
 
     const handleThemeToggle = () => {
@@ -381,57 +394,57 @@ const App: React.FC = () => {
     };
 
     const handleSidebarNavigation = (newView: ViewState) => {
-        // 1. Reset Global Selection States
         setSelectedCitizenId(null);
         setEditingDemand(null);
         setSelectedDemandId(null);
-        
-        // 2. Reset Map Specifics
         setMapFocus(null);
         setInitialMapViewMode('demands');
-
-        // 3. Reset Text Search & Specific Filters
-        // We keep date/status as they are often dashboard preferences, but clear specific item searches/filtering
-        setFilters(prev => ({
-            ...prev,
-            search: '',
-            responsibleId: undefined,
-        }));
-
-        // 4. Change View
+        setFilters({
+            search: '', level: [], priority: [], status: [], startDate: '', endDate: '', dateType: 'createdAt', tags: [], responsibleId: undefined
+        });
         setView(newView);
     };
 
     const handleStatusUpdate = async (demandId: string, newStatus: DemandStatus) => {
-        // 1. Find Old Status for Diff
         const demand = demands.find(d => d.id === demandId);
         const oldStatus = demand?.status;
+        if (!demand || oldStatus === newStatus) return;
 
-        // 2. Optimistic Update
+        // Optimistic Update
         setDemands(prev => prev.map(d => d.id === demandId ? { ...d, status: newStatus } : d)); 
         
         if(isSupabaseConfigured() && supabase) { 
-            // 3. Update Demand Status
-            await supabase.from('demands').update({ status: newStatus }).eq('id', demandId); 
-            
-            // 4. Auto-Comment Logic
-            if (oldStatus && oldStatus !== newStatus && currentUser) {
-                const userName = currentUser.name;
-                const commentText = `Status alterado de "${oldStatus}" para "${newStatus}" por ${userName}.`;
+            try {
+                // 1. Update Demand
+                const { error: demandError } = await supabase
+                    .from('demands')
+                    .update({ status: newStatus })
+                    .eq('id', demandId); 
                 
-                await supabase.from('demand_interactions').insert({
+                if (demandError) throw demandError;
+
+                // 2. Insert Interaction History
+                const currentUser = JSON.parse(localStorage.getItem('geo_user') || '{}');
+                const { error: interactionError } = await supabase.from('demand_interactions').insert({
                     demanda_id: demandId,
-                    tipo: 'comentario',
-                    texto: commentText,
-                    usuario: 'Sistema', // Or currentUser.name if you prefer 'Sistema' label
+                    tipo: 'status_change',
+                    texto: `Status alterado de "${oldStatus}" para "${newStatus}"`,
+                    usuario: currentUser.name || 'Sistema',
                     created_at: new Date().toISOString()
                 });
-                
-                // Refresh data to show new comment
-                fetchData();
-            }
 
-            showNotification('success', 'Status atualizado!'); 
+                if (interactionError) throw interactionError;
+
+                // 3. Refresh Data to ensure sync
+                fetchData();
+                showNotification('success', 'Status atualizado com sucesso!'); 
+
+            } catch (err: any) {
+                console.error("Error updating status:", err);
+                showNotification('error', 'Erro ao atualizar status: ' + err.message);
+                // Revert on error
+                setDemands(prev => prev.map(d => d.id === demandId ? { ...d, status: oldStatus as DemandStatus } : d)); 
+            }
         }
     };
 
@@ -475,17 +488,12 @@ const App: React.FC = () => {
     const kpiStats = useMemo(() => {
         if (dashboardScope === 'demands') {
             const total = dashboardFilteredDemands.length;
-            let pending = 0;
-            let completed = 0;
-            let highPriority = 0;
-
+            let pending = 0; let completed = 0; let highPriority = 0;
             for(const d of dashboardFilteredDemands) {
                 if (d.status === DemandStatus.PENDING) pending++;
                 else if (d.status === DemandStatus.COMPLETED) completed++;
-                
                 if (d.priority === DemandPriority.HIGH) highPriority++;
             }
-
             return {
                 stat1: { label: 'Filtradas', value: total, icon: Database, color: 'bg-blue-500', text: 'text-blue-600 dark:text-blue-400' },
                 stat2: { label: 'Pendentes', value: pending, icon: Clock, color: 'bg-slate-500', text: 'text-slate-600 dark:text-slate-400' },
@@ -496,13 +504,9 @@ const App: React.FC = () => {
             const total = citizens.length;
             const today = new Date().toDateString();
             const newToday = citizens.filter(c => c.createdAt && new Date(c.createdAt).toDateString() === today).length;
-            
             const neighborhoodCounts: Record<string, number> = {};
-            for(const c of citizens) {
-                if(c.bairro) neighborhoodCounts[c.bairro] = (neighborhoodCounts[c.bairro] || 0) + 1;
-            }
+            for(const c of citizens) { if(c.bairro) neighborhoodCounts[c.bairro] = (neighborhoodCounts[c.bairro] || 0) + 1; }
             const topNeighborhood = Object.entries(neighborhoodCounts).sort((a,b) => b[1] - a[1])[0];
-
             return {
                 stat1: { label: 'Total Cidadãos', value: total, icon: Users, color: 'bg-blue-500', text: 'text-blue-600 dark:text-blue-400' },
                 stat2: { label: 'Novos Hoje', value: newToday, icon: UserPlus, color: 'bg-green-500', text: 'text-green-600 dark:text-green-400' },
@@ -516,11 +520,7 @@ const App: React.FC = () => {
         if (dashboardScope === 'demands') {
             const counts = { [DemandStatus.PENDING]: 0, [DemandStatus.IN_PROGRESS]: 0, [DemandStatus.COMPLETED]: 0 };
             dashboardFilteredDemands.forEach(d => { if(counts[d.status] !== undefined) counts[d.status]++; });
-            return [
-                { label: 'Pendente', value: counts[DemandStatus.PENDING], color: '#64748b' }, 
-                { label: 'Em Andamento', value: counts[DemandStatus.IN_PROGRESS], color: '#f59e0b' }, 
-                { label: 'Concluído', value: counts[DemandStatus.COMPLETED], color: '#10b981' } 
-            ].filter(d => d.value > 0);
+            return [ { label: 'Pendente', value: counts[DemandStatus.PENDING], color: '#64748b' }, { label: 'Em Andamento', value: counts[DemandStatus.IN_PROGRESS], color: '#f59e0b' }, { label: 'Concluído', value: counts[DemandStatus.COMPLETED], color: '#10b981' } ].filter(d => d.value > 0);
         } else {
             const groups: Record<string, number> = {};
             dashboardFilteredCitizens.forEach(c => {
@@ -528,158 +528,48 @@ const App: React.FC = () => {
                 const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
                 groups[key] = (groups[key] || 0) + 1;
             });
-
             const sortedKeys = Object.keys(groups).sort().reverse();
             const colors = ['#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'];
-
             const data = sortedKeys.slice(0, 4).map((key, index) => {
                 const [y, m] = key.split('-');
                 const date = new Date(parseInt(y), parseInt(m) - 1);
                 const label = date.toLocaleString('pt-BR', { month: 'short', year: '2-digit' });
-                const formattedLabel = label.charAt(0).toUpperCase() + label.slice(1);
-                return { label: formattedLabel, value: groups[key], color: colors[index % colors.length] };
+                return { label: label.charAt(0).toUpperCase() + label.slice(1), value: groups[key], color: colors[index % colors.length] };
             });
-
             const othersCount = sortedKeys.slice(4).reduce((acc, k) => acc + groups[k], 0);
-            if (othersCount > 0) {
-                data.push({ label: 'Antigos', value: othersCount, color: '#94a3b8' });
-            }
+            if (othersCount > 0) data.push({ label: 'Antigos', value: othersCount, color: '#94a3b8' });
             return data;
         }
     }, [dashboardFilteredDemands, dashboardFilteredCitizens, dashboardScope]);
 
     const neighborhoodStats = useMemo(() => {
         const counts: Record<string, number> = {};
-        
         if (dashboardScope === 'demands') {
-            dashboardFilteredDemands.forEach(d => {
-                const citizen = citizens.find(c => c.id === d.citizenId);
-                if (citizen && citizen.bairro) {
-                    counts[citizen.bairro] = (counts[citizen.bairro] || 0) + 1;
-                }
-            });
+            dashboardFilteredDemands.forEach(d => { const citizen = citizens.find(c => c.id === d.citizenId); if (citizen && citizen.bairro) counts[citizen.bairro] = (counts[citizen.bairro] || 0) + 1; });
         } else {
-            dashboardFilteredCitizens.forEach(c => {
-                if (c.bairro) {
-                    counts[c.bairro] = (counts[c.bairro] || 0) + 1;
-                }
-            });
+            dashboardFilteredCitizens.forEach(c => { if (c.bairro) counts[c.bairro] = (counts[c.bairro] || 0) + 1; });
         }
-
-        return Object.entries(counts)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 7)
-            .map(([label, value]) => ({ label, value }));
+        return Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 7).map(([label, value]) => ({ label, value }));
     }, [dashboardFilteredDemands, dashboardFilteredCitizens, citizens, dashboardScope]);
 
     const recentDemands = useMemo(() => {
-        return [...dashboardFilteredDemands]
-            .sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-            .slice(0, 5);
+        return [...dashboardFilteredDemands].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
     }, [dashboardFilteredDemands]);
 
     const recentCitizens = useMemo(() => {
-        return [...dashboardFilteredCitizens]
-            .sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-            .slice(0, 5);
+        return [...dashboardFilteredCitizens].sort((a,b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()).slice(0, 5);
     }, [dashboardFilteredCitizens]);
 
     const upcomingDeadlines = useMemo(() => {
-        const now = new Date();
-        now.setHours(0,0,0,0);
-        return dashboardFilteredDemands
-            .filter(d => d.deadline && d.status !== DemandStatus.COMPLETED)
-            .map(d => ({ ...d, date: new Date(d.deadline!) }))
-            .filter(d => d.date >= now)
-            .sort((a,b) => a.date.getTime() - b.date.getTime())
-            .slice(0, 5);
+        const now = new Date(); now.setHours(0,0,0,0);
+        return dashboardFilteredDemands.filter(d => d.deadline && d.status !== DemandStatus.COMPLETED).map(d => ({ ...d, date: new Date(d.deadline!) })).filter(d => d.date >= now).sort((a,b) => a.date.getTime() - b.date.getTime()).slice(0, 5);
     }, [dashboardFilteredDemands]);
 
-    const currentRoleConfig = currentUser 
-        ? (systemConfig[currentUser.role] || DEFAULT_SYSTEM_CONFIG['assessor'])
-        : DEFAULT_SYSTEM_CONFIG['administrador']; 
+    const currentRoleConfig = currentUser ? (systemConfig[currentUser.role] || DEFAULT_SYSTEM_CONFIG['assessor']) : DEFAULT_SYSTEM_CONFIG['administrador']; 
 
-    // Helper functions for rendering dashboard lists
-    const renderRecentActivity = () => (
-        <div className="space-y-2">
-            {dashboardScope === 'demands' ? (
-                recentDemands.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><FilePlus className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentDemands.map(d => (
-                    <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
-                        <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex flex-col items-center justify-center text-brand-600 dark:text-brand-400 font-bold shrink-0 border border-brand-100 dark:border-brand-500/20">
-                            <span className="text-xs">{new Date(d.createdAt).getDate()}</span>
-                            <span className="text-[8px] uppercase">{new Date(d.createdAt).toLocaleString('default', { month: 'short' }).slice(0,3)}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                                <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4>
-                                <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${d.status === 'Concluído' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : d.status === 'Em Andamento' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'}`}>
-                                    {d.status}
-                                </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p>
-                        </div>
-                    </div>
-                ))
-            ) : (
-                // Citizen List for Recent Activity
-                recentCitizens.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><Users className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentCitizens.map(c => (
-                    <div key={c.id} onClick={() => { handleViewCitizen(c.id); }} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0 border border-blue-100 dark:border-blue-500/20">
-                            <span className="text-xs">{new Date(c.createdAt || Date.now()).getDate()}</span>
-                            <span className="text-[8px] uppercase">{new Date(c.createdAt || Date.now()).toLocaleString('default', { month: 'short' }).slice(0,3)}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start">
-                                <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{c.name}</h4>
-                                <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300">
-                                    {c.phone ? formatPhone(c.phone) : 'Sem Tel'}
-                                </span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 flex items-center gap-1">
-                                {c.bairro && <><MapPin className="w-2.5 h-2.5" /> {c.bairro}</>}
-                            </p>
-                        </div>
-                    </div>
-                ))
-            )}
-        </div>
-    );
-
-    const renderUpcoming = () => (
-        <div className="space-y-2">
-            {dashboardScope === 'demands' ? (
-                upcomingDeadlines.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><CheckCircle2 className="w-6 h-6 mb-2 opacity-20" />Tudo em dia!</div> : upcomingDeadlines.map(d => {
-                    const daysLeft = Math.ceil((d.date.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                    return (
-                        <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group">
-                            <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-bold shrink-0 border border-amber-100 dark:border-amber-500/20">
-                                <span className="text-xs">{d.date.getDate()}</span>
-                                <span className="text-[8px] uppercase">{d.date.toLocaleString('default', { month: 'short' }).slice(0,3)}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start">
-                                    <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4>
-                                    <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${daysLeft <= 2 ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-slate-100 text-slate-600 dark:bg-white/10'}`}>{daysLeft < 0 ? 'Exp.' : `${daysLeft}d`}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p>
-                            </div>
-                        </div>
-                    );
-                })
-            ) : (
-                // Top Neighborhoods List
-                neighborhoodStats.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><MapPin className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : neighborhoodStats.slice(0,5).map((n, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5">
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs font-bold text-slate-400 w-4">{i + 1}</span>
-                            <span className="text-xs font-bold text-slate-700 dark:text-white">{n.label}</span>
-                        </div>
-                        <span className="text-[10px] font-bold bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 px-2 py-1 rounded-full">{n.value}</span>
-                    </div>
-                ))
-            )}
-        </div>
-    );
+    // Render components helper
+    const renderRecentActivity = () => ( <div className="space-y-2"> {dashboardScope === 'demands' ? ( recentDemands.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><FilePlus className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentDemands.map(d => ( <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex flex-col items-center justify-center text-brand-600 dark:text-brand-400 font-bold shrink-0 border border-brand-100 dark:border-brand-500/20"> <span className="text-xs">{new Date(d.createdAt).getDate()}</span> <span className="text-[8px] uppercase">{new Date(d.createdAt).toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4> <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${d.status === 'Concluído' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : d.status === 'Em Andamento' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300'}`}> {d.status} </span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p> </div> </div> )) ) : ( recentCitizens.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><Users className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : recentCitizens.map(c => ( <div key={c.id} onClick={() => { handleViewCitizen(c.id); }} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex flex-col items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0 border border-blue-100 dark:border-blue-500/20"> <span className="text-xs">{new Date(c.createdAt || Date.now()).getDate()}</span> <span className="text-[8px] uppercase">{new Date(c.createdAt || Date.now()).toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{c.name}</h4> <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"> {c.phone ? formatPhone(c.phone) : 'Sem Tel'} </span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 flex items-center gap-1"> {c.bairro && <><MapPin className="w-2.5 h-2.5" /> {c.bairro}</>} </p> </div> </div> )) )} </div> );
+    const renderUpcoming = () => ( <div className="space-y-2"> {dashboardScope === 'demands' ? ( upcomingDeadlines.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><CheckCircle2 className="w-6 h-6 mb-2 opacity-20" />Tudo em dia!</div> : upcomingDeadlines.map(d => { const daysLeft = Math.ceil((d.date.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)); return ( <div key={d.id} onClick={() => { if(currentUser) { setSelectedDemandId(d.id); setView('demands'); }}} className="flex gap-3 p-2.5 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5 hover:border-brand-200 transition-all cursor-pointer group"> <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex flex-col items-center justify-center text-amber-600 dark:text-amber-400 font-bold shrink-0 border border-amber-100 dark:border-amber-500/20"> <span className="text-xs">{d.date.getDate()}</span> <span className="text-[8px] uppercase">{d.date.toLocaleString('default', { month: 'short' }).slice(0,3)}</span> </div> <div className="flex-1 min-w-0"> <div className="flex justify-between items-start"> <h4 className="text-xs font-bold text-slate-800 dark:text-white truncate group-hover:text-brand-600">{d.title}</h4> <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${daysLeft <= 2 ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-slate-100 text-slate-600 dark:bg-white/10'}`}>{daysLeft < 0 ? 'Exp.' : `${daysLeft}d`}</span> </div> <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{d.description}</p> </div> </div> ); }) ) : ( neighborhoodStats.length === 0 ? <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs italic"><MapPin className="w-6 h-6 mb-2 opacity-20" />Sem dados</div> : neighborhoodStats.slice(0,5).map((n, i) => ( <div key={i} className="flex justify-between items-center p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/5"> <div className="flex items-center gap-3"> <span className="text-xs font-bold text-slate-400 w-4">{i + 1}</span> <span className="text-xs font-bold text-slate-700 dark:text-white">{n.label}</span> </div> <span className="text-[10px] font-bold bg-purple-100 text-purple-600 dark:bg-purple-500/20 dark:text-purple-300 px-2 py-1 rounded-full">{n.value}</span> </div> )) )} </div> );
 
     return (
         <div className={`flex h-screen bg-slate-50 dark:bg-[#020617] transition-colors duration-500 overflow-hidden ${isDarkMode ? 'dark' : ''}`}>
@@ -689,6 +579,11 @@ const App: React.FC = () => {
                  <div className="absolute inset-0 z-[100]">
                     <AuthScreen onLogin={handleLogin} />
                  </div>
+             )}
+
+             {/* ONBOARDING OVERLAY */}
+             {showOnboarding && currentUser && (
+                 <OnboardingTutorial onFinish={() => setShowOnboarding(false)} />
              )}
 
              {/* DASHBOARD ROOT - Always rendered (Blurred if logged out) */}
@@ -706,7 +601,7 @@ const App: React.FC = () => {
                 />
                 
                 {/* Main Content Area - Applied Glass Style to Container */}
-                <main className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative ${view === 'map' ? 'lg:my-4 lg:mr-4 lg:ml-4' : 'lg:my-4 lg:mr-4 lg:ml-4'}`}>
+                <main className={`flex-1 flex flex-col min-w-0 transition-all duration-300 relative lg:my-4 lg:mr-4 lg:ml-4`}>
                     
                     {/* Offline Banner */}
                     {!isOnline && (
@@ -716,17 +611,14 @@ const App: React.FC = () => {
                     )}
 
                     {/* MAIN CONTENT GLASS CONTAINER */}
-                    <div className={`
-                        flex-1 relative overflow-hidden flex flex-col glass-container
-                        ${view === 'map' ? 'rounded-none md:rounded-[2.5rem] lg:border-0' : 'rounded-[2.5rem]'}
-                    `}>
+                    <div className="flex-1 relative overflow-hidden flex flex-col glass-container rounded-[2.5rem]">
                         
                         {notification && <div className={`fixed top-6 right-6 z-[1000] px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-right duration-300 ${notification.type === 'success' ? 'bg-green-500 text-white border-green-600' : 'bg-red-500 text-white border-red-600'}`}>{notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}<span className="font-bold text-sm">{notification.message}</span></div>}
 
                         <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin text-brand-500"/></div>}>
                             
-                            {/* SCROLLABLE VIEW */}
-                            {['dashboard', 'new-demand', 'edit-demand', 'admin_panel', 'demands', 'people'].includes(view) && (
+                            {/* SCROLLABLE VIEW - Now handles map too */}
+                            {['dashboard', 'new-demand', 'edit-demand', 'admin_panel', 'demands', 'people', 'map'].includes(view) && (
                                 <div 
                                     className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 lg:p-6 pb-32 lg:pb-6"
                                     onScroll={handleScroll}
@@ -736,9 +628,9 @@ const App: React.FC = () => {
                                     <div className="lg:hidden h-2 w-full"></div>
 
                                     {view === 'dashboard' && (
-                                        <div className="flex flex-col gap-6">
+                                        <div className="flex flex-col gap-6 max-w-[1600px] mx-auto w-full">
                                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-                                                <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Olá, {currentUser ? currentUser.name.split(' ')[0] : 'Bem-vindo'}</h1></div>
+                                                <div><h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Olá, {currentUser ? currentUser.name.split(' ')[0] : 'Bem-vindo'}</h1></div>
                                                 <WeatherWidget locations={weatherLocations} />
                                             </div>
                                             
@@ -750,12 +642,12 @@ const App: React.FC = () => {
                                                 className="sticky top-0 z-30" 
                                             />
                                             
-                                            {/* KPI CARDS */}
+                                            {/* KPI CARDS - Added Loading Prop */}
                                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-                                                <StatCard title={kpiStats.stat1.label} value={typeof kpiStats.stat1.value === 'string' ? 0 : kpiStats.stat1.value} subValue={typeof kpiStats.stat1.value === 'string' ? kpiStats.stat1.value : undefined} icon={kpiStats.stat1.icon} colorClass={kpiStats.stat1.color} textClass={kpiStats.stat1.text} />
-                                                <StatCard title={kpiStats.stat2.label} value={typeof kpiStats.stat2.value === 'string' ? 0 : kpiStats.stat2.value} subValue={typeof kpiStats.stat2.value === 'string' ? kpiStats.stat2.value : undefined} icon={kpiStats.stat2.icon} colorClass={kpiStats.stat2.color} textClass={kpiStats.stat2.text} />
-                                                <StatCard title={kpiStats.stat3.label} value={typeof kpiStats.stat3.value === 'string' ? 0 : kpiStats.stat3.value} subValue={typeof kpiStats.stat3.value === 'string' ? kpiStats.stat3.value : undefined} icon={kpiStats.stat3.icon} colorClass={kpiStats.stat3.color} textClass={kpiStats.stat3.text} />
-                                                <StatCard title={kpiStats.stat4.label} value={typeof kpiStats.stat4.value === 'string' ? 0 : kpiStats.stat4.value} subValue={typeof kpiStats.stat4.value === 'string' ? kpiStats.stat4.value : undefined} icon={kpiStats.stat4.icon} colorClass={kpiStats.stat4.color} textClass={kpiStats.stat4.text} />
+                                                <StatCard isLoading={isDataLoading} title={kpiStats.stat1.label} value={typeof kpiStats.stat1.value === 'string' ? 0 : kpiStats.stat1.value} subValue={typeof kpiStats.stat1.value === 'string' ? kpiStats.stat1.value : undefined} icon={kpiStats.stat1.icon} colorClass={kpiStats.stat1.color} textClass={kpiStats.stat1.text} />
+                                                <StatCard isLoading={isDataLoading} title={kpiStats.stat2.label} value={typeof kpiStats.stat2.value === 'string' ? 0 : kpiStats.stat2.value} subValue={typeof kpiStats.stat2.value === 'string' ? kpiStats.stat2.value : undefined} icon={kpiStats.stat2.icon} colorClass={kpiStats.stat2.color} textClass={kpiStats.stat2.text} />
+                                                <StatCard isLoading={isDataLoading} title={kpiStats.stat3.label} value={typeof kpiStats.stat3.value === 'string' ? 0 : kpiStats.stat3.value} subValue={typeof kpiStats.stat3.value === 'string' ? kpiStats.stat3.value : undefined} icon={kpiStats.stat3.icon} colorClass={kpiStats.stat3.color} textClass={kpiStats.stat3.text} />
+                                                <StatCard isLoading={isDataLoading} title={kpiStats.stat4.label} value={typeof kpiStats.stat4.value === 'string' ? 0 : kpiStats.stat4.value} subValue={typeof kpiStats.stat4.value === 'string' ? kpiStats.stat4.value : undefined} icon={kpiStats.stat4.icon} colorClass={kpiStats.stat4.color} textClass={kpiStats.stat4.text} />
                                             </div>
                                             
                                             {currentRoleConfig.dashboardWidgets.showAnalytics && (
@@ -784,76 +676,47 @@ const App: React.FC = () => {
                                             
                                             {/* SPLIT LAYOUT FOR LISTS */}
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
-                                                
-                                                {/* Left Column: Recent Activity */}
                                                 <div className={`glass-panel p-5 rounded-2xl flex flex-col h-full min-h-[300px] border border-slate-200 dark:border-white/10 ${infoBlockTab !== 'activity' ? 'hidden lg:flex' : 'flex'}`}>
                                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                                                        {/* Mobile Tabs */}
                                                         <div className="w-full lg:hidden">
-                                                            <SegmentedControl 
-                                                                value={infoBlockTab}
-                                                                onChange={(val) => setInfoBlockTab(val as any)}
-                                                                options={[
-                                                                    { value: 'activity', label: 'Atividade Recente', icon: Activity },
-                                                                    { value: 'upcoming', label: 'Próx. Prazos', icon: ArrowUpRight }
-                                                                ]}
-                                                            />
+                                                            <SegmentedControl value={infoBlockTab} onChange={(val) => setInfoBlockTab(val as any)} options={[{ value: 'activity', label: 'Atividade Recente', icon: Activity }, { value: 'upcoming', label: 'Próx. Prazos', icon: ArrowUpRight }]} />
                                                         </div>
-                                                        {/* Desktop Title */}
                                                         <h3 className="hidden lg:flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60">
                                                             <Activity className="w-4 h-4" /> Atividades Recentes
                                                         </h3>
-
-                                                        <button onClick={() => setView(dashboardScope === 'demands' ? 'demands' : 'people')} className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">
-                                                            Ver Todos <ArrowRight className="w-3 h-3" />
-                                                        </button>
+                                                        <button onClick={() => setView(dashboardScope === 'demands' ? 'demands' : 'people')} className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">Ver Todos <ArrowRight className="w-3 h-3" /></button>
                                                     </div>
                                                     {renderRecentActivity()}
                                                 </div>
-
-                                                {/* Right Column: Upcoming / Top */}
                                                 <div className={`glass-panel p-5 rounded-2xl flex flex-col h-full min-h-[300px] border border-slate-200 dark:border-white/10 ${infoBlockTab !== 'upcoming' ? 'hidden lg:flex' : 'flex'}`}>
                                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-                                                        {/* Mobile Tabs */}
                                                         <div className="w-full lg:hidden">
-                                                            <SegmentedControl 
-                                                                value={infoBlockTab}
-                                                                onChange={(val) => setInfoBlockTab(val as any)}
-                                                                options={[
-                                                                    { value: 'activity', label: 'Atividade Recente', icon: Activity },
-                                                                    { value: 'upcoming', label: 'Próx. Prazos', icon: ArrowUpRight }
-                                                                ]}
-                                                            />
+                                                            <SegmentedControl value={infoBlockTab} onChange={(val) => setInfoBlockTab(val as any)} options={[{ value: 'activity', label: 'Atividade Recente', icon: Activity }, { value: 'upcoming', label: 'Próx. Prazos', icon: ArrowUpRight }]} />
                                                         </div>
-                                                        {/* Desktop Title */}
                                                         <h3 className="hidden lg:flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60">
                                                             <ArrowUpRight className="w-4 h-4" /> {dashboardScope === 'demands' ? 'Próximos Prazos' : 'Top Bairros'}
                                                         </h3>
-
-                                                        {/* Added Button */}
-                                                        <button onClick={() => {
-                                                            if (dashboardScope === 'demands') {
-                                                                setInitialDemandView('calendar');
-                                                                setView('demands');
-                                                            } else {
-                                                                setView('map'); 
-                                                            }
-                                                        }} className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">
-                                                            Ver Todos <ArrowRight className="w-3 h-3" />
-                                                        </button>
+                                                        <button onClick={() => { if (dashboardScope === 'demands') { setInitialDemandView('calendar'); setView('demands'); } else { setView('map'); } }} className="text-xs font-bold text-brand-600 hover:text-brand-700 flex items-center gap-1">Ver Todos <ArrowRight className="w-3 h-3" /></button>
                                                     </div>
                                                     {renderUpcoming()}
                                                 </div>
-
                                             </div>
                                         </div>
                                     )}
-                                    {view === 'new-demand' && <DemandForm initialSearchTerm={selectedCitizenId || undefined} onSuccess={(id) => { fetchData(); setView('demands'); setSelectedCitizenId(null); }} onCancel={() => { setView('demands'); setSelectedCitizenId(null); }} onNotification={showNotification} />}
-                                    {view === 'edit-demand' && editingDemand && <DemandEdit demand={editingDemand} onSuccess={(id) => { fetchData(); setView('demands'); setEditingDemand(null); }} onCancel={() => { setView('demands'); setEditingDemand(null); }} onNotification={showNotification} />}
-                                    {/* Updated AdminScreen */}
+                                    {view === 'new-demand' && (
+                                        <div className="max-w-[1600px] mx-auto w-full h-full">
+                                            <DemandForm initialSearchTerm={selectedCitizenId || undefined} onSuccess={(id) => { fetchData(); setView('demands'); setSelectedCitizenId(null); }} onCancel={() => { setView('demands'); setSelectedCitizenId(null); }} onNotification={showNotification} />
+                                        </div>
+                                    )}
+                                    {view === 'edit-demand' && editingDemand && (
+                                        <div className="max-w-[1600px] mx-auto w-full h-full">
+                                            <DemandEdit demand={editingDemand} onSuccess={(id) => { fetchData(); setView('demands'); setEditingDemand(null); }} onCancel={() => { setView('demands'); setEditingDemand(null); }} onNotification={showNotification} />
+                                        </div>
+                                    )}
                                     {view === 'admin_panel' && currentUser && <AdminScreen currentUser={currentUser} systemConfig={systemConfig} onUpdateConfig={setSystemConfig} onUpdateLocation={setWeatherLocations} onNotification={showNotification} onLogout={handleLogout} toggleTheme={handleThemeToggle} isDarkMode={isDarkMode} />}
                                     
-                                    {view === 'demands' && (
+                                    {/* Consolidated Map View - Now handled like Demands View to prevent expansion */}
+                                    {(view === 'demands' || view === 'map') && (
                                         <DemandsView 
                                             demands={filteredDemands} 
                                             citizens={citizens} 
@@ -869,10 +732,12 @@ const App: React.FC = () => {
                                             onNotification={showNotification} 
                                             defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} 
                                             onViewCitizen={handleViewCitizen} 
-                                            initialViewMode={initialDemandView} 
+                                            initialViewMode={view === 'map' ? 'map' : initialDemandView} 
                                             mapMarkers={precalculatedMapMarkers} 
-                                            initialSelectionId={selectedDemandId} // Pass selection to trigger modal
+                                            initialSelectionId={selectedDemandId} 
                                             clearSelection={() => setSelectedDemandId(null)}
+                                            mapFocus={mapFocus}
+                                            initialMapViewMode={initialMapViewMode}
                                         />
                                     )}
                                     
@@ -885,7 +750,7 @@ const App: React.FC = () => {
                                             onPersonUpdate={fetchData} 
                                             permissions={currentRoleConfig} 
                                             onModeChange={setPeopleManagerMode} 
-                                            demands={demands} // Pass demands for filtering
+                                            demands={demands} 
                                         />
                                     )}
                                 </div>
@@ -900,35 +765,6 @@ const App: React.FC = () => {
                                     }}
                                 />
                             )}
-
-                            {/* MAP - Full Height Fixed Container */}
-                            {view === 'map' && (
-                                <div className="absolute inset-0 z-0 flex flex-col overflow-hidden pb-[76px] md:pb-0">
-                                    <DemandsView 
-                                        demands={filteredDemands} 
-                                        citizens={citizens} 
-                                        interactions={interactions} 
-                                        users={users} 
-                                        onViewDemand={() => {}} 
-                                        onEditDemand={(d) => { setEditingDemand(d); setView('edit-demand'); }} 
-                                        onCreateDemand={() => setView('new-demand')} 
-                                        onUpdateStatus={handleStatusUpdate}
-                                        onInteractionUpdate={fetchData} 
-                                        filters={filters} 
-                                        setFilters={setFilters} 
-                                        onNotification={showNotification} 
-                                        initialViewMode="map" 
-                                        defaultLocation={weatherLocations.length > 0 ? weatherLocations[0] : null} 
-                                        onViewCitizen={handleViewCitizen} 
-                                        mapMarkers={precalculatedMapMarkers} 
-                                        initialSelectionId={selectedDemandId} // Pass selection
-                                        clearSelection={() => setSelectedDemandId(null)}
-                                        mapFocus={mapFocus} // Pass map focus state
-                                        initialMapViewMode={initialMapViewMode} // Pass initial view mode
-                                    />
-                                </div>
-                            )}
-
                         </Suspense>
                     </div>
                 </main>

@@ -1,7 +1,9 @@
 
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Citizen, Demand, DemandStatus } from '../types';
-import { X, MapPin, Phone, Mail, PlusCircle, Edit3, ChevronLeft, ChevronRight, BarChart3, User, ExternalLink, MessageCircle } from 'lucide-react';
+import { X, MapPin, Phone, Mail, PlusCircle, Edit3, ChevronLeft, ChevronRight, BarChart3, User, ExternalLink, MessageCircle, FileText, AlignLeft } from 'lucide-react';
 import { formatPhone } from '../utils/cpfValidation';
 import DemandMiniMap from './DemandMiniMap';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
@@ -12,6 +14,7 @@ interface CitizenDetailsModalProps {
   onEdit: () => void;
   onCreateDemand: () => void;
   onNotification?: (type: 'success' | 'error', message: string) => void;
+  onSelectDemand?: (demand: Demand) => void; // New prop to handle navigation
 }
 
 const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({ 
@@ -19,7 +22,8 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
     onClose, 
     onEdit, 
     onCreateDemand,
-    onNotification
+    onNotification,
+    onSelectDemand
 }) => {
   const [history, setHistory] = useState<Demand[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -182,6 +186,20 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
                             </div>
                         </div>
 
+                        {/* Observations Block */}
+                        <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 shadow-sm space-y-3">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 flex items-center gap-2">
+                                <AlignLeft className="w-4 h-4" /> Observações
+                            </h3>
+                            <div className="p-4 bg-slate-50 dark:bg-white/5 rounded-xl min-h-[80px]">
+                                {citizen.observacoes ? (
+                                    <p className="text-sm text-slate-700 dark:text-white leading-relaxed whitespace-pre-wrap">{citizen.observacoes}</p>
+                                ) : (
+                                    <p className="text-sm text-slate-400 italic">Nenhuma observação registrada.</p>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Location */}
                         <div className="space-y-3">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 flex items-center gap-2">
@@ -215,7 +233,7 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
                             <PlusCircle className="w-5 h-5" /> Nova Demanda
                         </button>
 
-                        {/* History */}
+                        {/* History - Now Clickable */}
                         <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 shadow-sm flex flex-col h-[400px]">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-white/60 flex items-center gap-2 mb-4">
                                 <BarChart3 className="w-4 h-4" /> Histórico ({history.length})
@@ -223,12 +241,16 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
                             
                             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2">
                                 {history.length > 0 ? history.map(d => (
-                                    <div key={d.id} className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                                    <div 
+                                        key={d.id} 
+                                        onClick={() => onSelectDemand && onSelectDemand(d)}
+                                        className="p-3 rounded-xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5 cursor-pointer hover:bg-slate-100 dark:hover:bg-white/10 hover:border-brand-200 transition-all group"
+                                    >
                                         <div className="flex justify-between items-start mb-1">
-                                            <span className="text-[10px] font-bold text-slate-400">#{d.id.slice(0,6)}</span>
+                                            <span className="text-[10px] font-bold text-slate-400 group-hover:text-brand-500 transition-colors">#{d.id.slice(0,6)}</span>
                                             <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${d.status === 'Concluído' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>{d.status}</span>
                                         </div>
-                                        <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-1">{d.title}</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-1 group-hover:text-brand-600 transition-colors">{d.title}</p>
                                         <p className="text-xs text-slate-500 dark:text-white/50 mt-1">{new Date(d.createdAt).toLocaleDateString()}</p>
                                     </div>
                                 )) : (

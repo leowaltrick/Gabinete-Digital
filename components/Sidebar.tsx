@@ -194,7 +194,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({ currentView, setView, user
       {/* MOBILE BOTTOM NAVIGATION */}
       <nav 
         className={`
-            lg:hidden fixed bottom-0 left-0 right-0 z-[900] 
+            lg:hidden fixed bottom-0 left-0 right-0 z-[3000] 
             bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-xl 
             border-t border-slate-200 dark:border-white/10 
             pb-safe-area shadow-[0_-4px_20px_rgba(0,0,0,0.05)]

@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Demand, Citizen, DemandStatus, DemandPriority, DemandInteraction } from '../types';
-import { X, Calendar, MapPin, Clock, Edit3, FileText, CheckSquare, Send, Trash2, Plus, MessageSquare, Check, ChevronLeft, ChevronRight, Tag, ExternalLink, Mail, Phone, MessageCircle } from 'lucide-react';
+import { X, Calendar, MapPin, Clock, Edit3, FileText, CheckSquare, Send, Trash2, Plus, MessageSquare, Check, ChevronLeft, ChevronRight, Tag, ExternalLink, Mail, Phone, MessageCircle, User as UserIcon, CheckCircle2, Zap, AlertCircle } from 'lucide-react';
 import { formatDate, formatPhone } from '../utils/cpfValidation';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import DemandMiniMap from './DemandMiniMap';
@@ -67,7 +66,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
       fetchInteractions();
       setHighlightedIds([]); // Reset highlights on demand change
       setTags(demand.tags || []);
-  }, [demand.id]);
+  }, [demand.id, demand.status]); // Trigger refresh on status change too
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -91,7 +90,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                   .from('demand_interactions')
                   .select('*')
                   .eq('demanda_id', demand.id)
-                  .order('created_at', { ascending: true }); // We fetch ascending but display inverted for comments
+                  .order('created_at', { ascending: false }); // ORDER BY NEWEST FIRST
               
               if (error) throw error;
               
@@ -131,8 +130,8 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
           createdAt: new Date().toISOString()
       };
 
-      // Optimistic Update
-      setInteractions(prev => [...prev, newInteraction]);
+      // Optimistic Update (Prepend to show at top)
+      setInteractions(prev => [newInteraction, ...prev]);
       
       // Highlight new comment
       setHighlightedIds(prev => [...prev, optimisticId]);
@@ -262,8 +261,8 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
 
   // --- Derived Data ---
   const checklistItems = interactions.filter(i => i.type === 'checklist');
-  // Reverse comments to show newest first
-  const comments = interactions.filter(i => i.type === 'comentario').reverse();
+  // Just filter, already sorted by query
+  const comments = interactions.filter(i => i.type === 'comentario' || i.type === 'status_change');
   
   const checklistProgress = useMemo(() => {
       if (checklistItems.length === 0) return 0;
@@ -274,9 +273,39 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
   // --- Status Logic ---
   const statusOptions = [
     { value: DemandStatus.PENDING, label: 'Pendente', icon: Clock },
-    { value: DemandStatus.IN_PROGRESS, label: 'Em Andamento', icon: Clock },
-    { value: DemandStatus.COMPLETED, label: 'Concluído', icon: Clock }
+    { value: DemandStatus.IN_PROGRESS, label: 'Em Andamento', icon: Zap },
+    { value: DemandStatus.COMPLETED, label: 'Concluído', icon: CheckCircle2 }
   ];
+
+  const getStatusStep = (status: DemandStatus) => {
+      switch(status) {
+          case DemandStatus.PENDING: return 1;
+          case DemandStatus.IN_PROGRESS: return 2;
+          case DemandStatus.COMPLETED: return 3;
+          default: return 1;
+      }
+  }
+
+  // Helper to find when a specific status happened
+  const getStatusDate = (stepStatus: DemandStatus) => {
+      // Pending is essentially creation date
+      if (stepStatus === DemandStatus.PENDING) {
+          return new Date(demand.createdAt);
+      }
+      
+      // Look for the LATEST log that moved TO this status
+      // Since interactions are sorted desc, finding the first one works
+      const changeLog = interactions.find(i => 
+          i.type === 'status_change' && 
+          (i.text.includes(`para "${stepStatus}"`) || i.text.includes(`para ${stepStatus}`))
+      );
+
+      if (changeLog) {
+          return new Date(changeLog.createdAt);
+      }
+      
+      return null;
+  };
 
   const openWhatsApp = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -288,7 +317,6 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
   };
 
   const handleMapClick = () => {
-      // Use setTimeout to ensure the state update doesn't conflict with unmounting
       setTimeout(() => {
           const event = new CustomEvent('navigate-to-map', { 
               detail: { 
@@ -299,10 +327,9 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
           });
           window.dispatchEvent(event);
       }, 0);
-      onClose(); // Close modal immediately
+      onClose(); 
   };
 
-  // Construct full address for geocoding fallback
   const fullAddress = citizen 
     ? `${citizen.logradouro}, ${citizen.numero} - ${citizen.bairro}, ${citizen.cidade} - ${citizen.estado}` 
     : undefined;
@@ -321,7 +348,6 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
             {/* Sticky Header */}
             <div className="px-4 py-3 md:px-8 md:py-5 border-b border-slate-200 dark:border-white/10 flex items-start justify-between bg-white/90 dark:bg-[#0b1121]/90 backdrop-blur-md z-20 shrink-0 sticky top-0">
                 <div className="flex-1 min-w-0 mr-4">
-                    {/* Add Back Button */}
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <button 
                             onClick={onClose} 
@@ -346,7 +372,6 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    {/* Navigation Buttons */}
                     {onNavigate && (
                         <div className="hidden md:flex items-center bg-slate-100 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 mr-2">
                             <button 
@@ -393,16 +418,52 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                 {/* LEFT COLUMN (MAIN CONTENT) */}
                 <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 min-w-0">
                     
+                    {/* Minimalist Timeline */}
+                    <div className="w-full">
+                        <div className="flex justify-between items-start relative px-4 md:px-12 mb-8 mt-2">
+                            {/* Connecting Line */}
+                            <div className="absolute top-3 left-4 right-4 md:left-12 md:right-12 h-0.5 bg-slate-200 dark:bg-white/10 -z-10" />
+                            
+                            {statusOptions.map((step, index) => {
+                                const currentStep = getStatusStep(demand.status);
+                                const stepNum = index + 1;
+                                const isCompleted = stepNum <= currentStep;
+                                const isCurrent = stepNum === currentStep;
+                                const date = getStatusDate(step.value);
+
+                                return (
+                                    <div key={step.value} className="flex flex-col items-center gap-2 group bg-transparent">
+                                        <div 
+                                            className={`w-7 h-7 rounded-full flex items-center justify-center border-4 transition-all duration-500 z-10 bg-white dark:bg-slate-900 ${
+                                                isCompleted 
+                                                ? 'border-brand-500' 
+                                                : 'border-slate-300 dark:border-white/20'
+                                            } ${isCurrent ? 'ring-4 ring-brand-100 dark:ring-brand-500/20 scale-110' : ''}`}
+                                        >
+                                            <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${isCompleted ? 'bg-brand-500' : 'bg-slate-300 dark:bg-white/20'}`} />
+                                        </div>
+                                        <div className="flex flex-col items-center text-center">
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isCurrent ? 'text-brand-600 dark:text-brand-400' : 'text-slate-500 dark:text-white/40'}`}>
+                                                {step.label}
+                                            </span>
+                                            {date && (
+                                                <span className="text-[9px] text-slate-400 dark:text-white/30 font-medium h-3 mt-0.5">
+                                                    {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} {date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' })}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
                     {/* Description */}
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60">
                                 <FileText className="w-4 h-4" /> Descrição
                             </h3>
-                            {/* Mobile Status Picker */}
-                            <div className="md:hidden">
-                                <span className={`px-2 py-1 rounded text-xs font-bold ${demand.status === DemandStatus.COMPLETED ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{demand.status}</span>
-                            </div>
                         </div>
                         <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-5 md:p-6 shadow-sm">
                             <p className="text-sm md:text-base text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
@@ -451,6 +512,8 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                             address={fullAddress}
                             onClick={handleMapClick}
                             onLocationUpdate={onInteractionUpdate} // Trigger update to parent to refresh data
+                            status={demand.status}
+                            priority={demand.priority}
                         />
                     </div>
 
@@ -581,7 +644,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                     {/* ACTIVITY / COMMENTS SECTION */}
                     <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-white/10">
                         <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500 dark:text-white/60">
-                            <MessageSquare className="w-4 h-4" /> Comentários
+                            <MessageSquare className="w-4 h-4" /> Comentários e Histórico
                         </h3>
 
                         <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden shadow-sm">
@@ -609,11 +672,11 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                                 </div>
                             </div>
 
-                            {/* List - REVERSED: Newest at Top */}
+                            {/* List - REVERSED: Newest at Top (Already sorted by query) */}
                             <div className="divide-y divide-slate-100 dark:divide-white/5 max-h-[300px] overflow-y-auto custom-scrollbar">
                                 {comments.length === 0 ? (
                                     <div className="p-6 text-center text-slate-400 dark:text-white/30 text-sm italic">
-                                        Nenhum comentário registrado.
+                                        Nenhum comentário ou registro de atividade.
                                     </div>
                                 ) : (
                                     comments.map(comment => (
@@ -623,21 +686,37 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                                                 highlightedIds.includes(comment.id) ? 'bg-amber-50 dark:bg-amber-500/10 animate-pulse duration-1000' : ''
                                             }`}
                                         >
-                                            <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-white font-bold text-xs shrink-0 border border-slate-300 dark:border-white/10">
-                                                {comment.user.charAt(0)}
-                                            </div>
+                                            {/* Avatar/Icon based on type */}
+                                            {comment.type === 'status_change' ? (
+                                                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold text-xs shrink-0 border border-amber-200 dark:border-amber-500/20">
+                                                    <Clock className="w-4 h-4" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-white font-bold text-xs shrink-0 border border-slate-300 dark:border-white/10">
+                                                    {comment.user.charAt(0)}
+                                                </div>
+                                            )}
+
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{comment.user}</span>
+                                                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                                        {comment.user}
+                                                    </span>
                                                     <span className="text-[10px] text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
                                                 </div>
-                                                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed break-words bg-slate-50 dark:bg-white/5 p-3 rounded-tr-xl rounded-br-xl rounded-bl-xl border border-slate-100 dark:border-white/5">
+                                                <p className={`text-sm leading-relaxed break-words p-3 rounded-tr-xl rounded-br-xl rounded-bl-xl border ${
+                                                    comment.type === 'status_change' 
+                                                    ? 'bg-amber-50/50 dark:bg-amber-900/10 text-slate-600 dark:text-slate-300 border-amber-100 dark:border-amber-500/10 italic' 
+                                                    : 'bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-100 dark:border-white/5'
+                                                }`}>
                                                     {comment.text}
                                                 </p>
                                             </div>
-                                            <button onClick={() => deleteInteraction(comment.id)} className="opacity-0 group-hover:opacity-100 self-start p-2 text-slate-300 hover:text-red-500 transition-all">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {comment.type === 'comentario' && (
+                                                <button onClick={() => deleteInteraction(comment.id)} className="opacity-0 group-hover:opacity-100 self-start p-2 text-slate-300 hover:text-red-500 transition-all">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     ))
                                 )}
@@ -702,7 +781,7 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
                         </div>
                     </div>
 
-                    {/* Citizen Info Mini */}
+                    {/* Citizen Info Mini - Now Clickable to go back */}
                     <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl p-4">
                          <div className="flex items-center justify-between mb-3">
                             <h4 className="text-xs font-bold uppercase text-slate-400 dark:text-white/40">Solicitante</h4>
@@ -710,7 +789,11 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
 
                          {citizen ? (
                              <div className="flex flex-col gap-3">
-                                 <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 p-2 -ml-2 rounded-xl transition-colors group" onClick={() => onViewCitizen && onViewCitizen(citizen.id)}>
+                                 <div 
+                                    className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 p-2 -ml-2 rounded-xl transition-colors group" 
+                                    onClick={() => onViewCitizen && onViewCitizen(citizen.id)}
+                                    title="Ver perfil do cidadão"
+                                 >
                                      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-600 dark:text-white font-bold text-sm shadow-inner shrink-0">
                                         {citizen.name.charAt(0)}
                                      </div>

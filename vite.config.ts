@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         // Correção CRÍTICA: Seus componentes estão na raiz, então @ deve apontar para a raiz, não para src.
-        "@": path.resolve(__dirname, "./"),
+        "@": path.resolve("./"),
       },
     },
     build: {

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Search, X, Calendar, ChevronLeft, ChevronRight, Download, Filter, User, SlidersHorizontal, RotateCcw, Clock, Zap, AlertCircle, Users } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, X, Calendar, ChevronLeft, ChevronRight, Download, Filter, User, SlidersHorizontal, RotateCcw, Clock, Zap, AlertCircle, Users, LayoutList } from 'lucide-react';
 import { DemandLevel, DemandStatus, DemandPriority, FilterState } from '../types';
 import MultiSelect from './MultiSelect';
 import SegmentedControl from './SegmentedControl';
@@ -12,6 +12,7 @@ interface FilterBarProps {
   availableTags?: string[];
   isMapMode?: boolean;
   mapViewMode?: 'demands' | 'citizens'; 
+  onMapViewModeChange?: (mode: 'demands' | 'citizens') => void;
 }
 
 const FilterChip: React.FC<{ label: React.ReactNode; onRemove: () => void }> = ({ label, onRemove }) => (
@@ -38,7 +39,7 @@ const MapFilterChip: React.FC<{ label: string; icon?: any; isActive: boolean; on
     </button>
 );
 
-const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, users = [], availableTags = [], isMapMode = false, mapViewMode }) => {
+const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, users = [], availableTags = [], isMapMode = false, mapViewMode, onMapViewModeChange }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerDate, setPickerDate] = useState(new Date());
@@ -211,6 +212,20 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
             )}
          </div>
 
+         {/* Map Mode Toggle Switch (Added here) */}
+         {isMapMode && onMapViewModeChange && mapViewMode && (
+             <div className="w-full md:w-auto min-w-[200px] shadow-lg rounded-xl">
+                 <SegmentedControl
+                    value={mapViewMode}
+                    onChange={(val) => onMapViewModeChange(val as any)}
+                    options={[
+                        { value: 'demands', label: 'Demandas', icon: LayoutList },
+                        { value: 'citizens', label: 'Cidadãos', icon: Users },
+                    ]}
+                 />
+             </div>
+         )}
+
          {!isMapMode ? (
              <div className="flex w-full md:w-auto gap-2">
                  <button 
@@ -258,14 +273,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
           </div>
       )}
       
-      {/* Map Mode: Citizens Indicator */}
-      {isMapMode && mapViewMode === 'citizens' && (
-           <div className="flex overflow-x-auto gap-2 pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-none">
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-brand-600 text-white shadow-sm whitespace-nowrap border border-brand-600">
-                    <Users className="w-3.5 h-3.5" /> Visualizando Mapa de Cidadãos
-                </div>
-           </div>
-      )}
+      {/* Map Mode: Citizens Indicator removed from bottom, logic integrated into toggle above */}
 
       {/* Active Filters Area (Standard View) */}
       {(!isMapMode || (isMapMode && window.innerWidth >= 768)) && activeFiltersCount > 0 && (
@@ -284,7 +292,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, onExport, us
          </div>
       )}
 
-      {/* Advanced Filters Deck (Simplified & Optimized) */}
+      {/* Advanced Filters Deck */}
       {showAdvanced && (
           <>
             <div className="fixed inset-0 z-10 bg-slate-900/30 backdrop-blur-sm transition-opacity" onClick={() => setShowAdvanced(false)} /> 

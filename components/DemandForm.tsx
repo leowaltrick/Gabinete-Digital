@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Citizen, DemandLevel, DemandStatus, DemandPriority, Pessoa, DemandType } from '../types';
 import { Search, Save, MapPin, AlertCircle, Loader2, Phone, X, List, PlusCircle, ArrowLeft, User, FileText, Calendar, Mail, CloudOff, Check } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-import { formatPhone, stripNonDigits } from '../utils/cpfValidation';
+import { formatPhone, stripNonDigits, formatCEP } from '../utils/cpfValidation';
 import PeopleManager from './PeopleManager';
 
 interface DemandFormProps {
@@ -103,7 +103,7 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
   });
 
   const fillAddressFromCitizen = (citizen: Citizen) => {
-      if(citizen.cep) setCep(citizen.cep);
+      if(citizen.cep) setCep(formatCEP(citizen.cep));
       if(citizen.logradouro) setLogradouro(citizen.logradouro);
       if(citizen.numero) setNumero(citizen.numero);
       if(citizen.bairro) setBairro(citizen.bairro);
@@ -218,6 +218,7 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
         // 1. Create Citizen if needed
         if (isNewCitizen && !finalCitizenId) {
            const cleanPhone = stripNonDigits(newPhone);
+           const cleanCep = cep ? stripNonDigits(cep) : null;
            
            if (!navigator.onLine) {
                // Offline: Generate Temp ID
@@ -235,7 +236,7 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
                        sobrenome: newSobrenome || '.',
                        telefone: cleanPhone,
                        email: newEmail || null,
-                       cep: cep || null,
+                       cep: cleanCep, // Use clean CEP
                        logradouro: logradouro || null,
                        numero: numero || null,
                        bairro: bairro || null,
@@ -303,10 +304,9 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
                 <ArrowLeft className="w-6 h-6" />
             </button>
             <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                     Nova Demanda
                 </h1>
-                <p className="text-xs text-slate-500 dark:text-white/50 font-medium">Preencha os dados da solicitação.</p>
             </div>
         </div>
       </div>
@@ -425,7 +425,7 @@ const DemandForm: React.FC<DemandFormProps> = ({ initialSearchTerm, onSuccess, o
                             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-white/40"><MapPin className="w-4 h-4" /> Endereço da Ocorrência</div>
                         </div>
                         <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 sm:col-span-4"><label className="text-[10px] font-bold text-slate-500 dark:text-white/50 uppercase mb-1 block">CEP</label><div className="relative"><input type="text" value={cep} onChange={(e) => setCep(e.target.value)} onBlur={handleCepBlur} className="w-full pl-9 pr-8 py-2.5 glass-input border border-slate-300 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 text-sm" placeholder="00000-000" /><Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />{isLoadingCep && <Loader2 className="absolute right-3 top-3 w-4 h-4 text-brand-500 animate-spin" />}</div></div>
+                            <div className="col-span-12 sm:col-span-4"><label className="text-[10px] font-bold text-slate-500 dark:text-white/50 uppercase mb-1 block">CEP</label><div className="relative"><input type="text" value={cep} onChange={(e) => setCep(formatCEP(e.target.value))} onBlur={handleCepBlur} className="w-full pl-9 pr-8 py-2.5 glass-input border border-slate-300 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 text-sm" placeholder="00000-000" /><Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />{isLoadingCep && <Loader2 className="absolute right-3 top-3 w-4 h-4 text-brand-500 animate-spin" />}</div></div>
                             <div className="col-span-8 sm:col-span-8"><label className="text-[10px] font-bold text-slate-500 dark:text-white/50 uppercase mb-1 block">Cidade</label><input type="text" value={cidade} onChange={(e) => setCidade(e.target.value)} className="w-full px-3 py-2.5 glass-input border border-slate-300 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 text-sm" /></div>
                             <div className="col-span-12 sm:col-span-9"><label className="text-[10px] font-bold text-slate-500 dark:text-white/50 uppercase mb-1 block">Logradouro</label><input type="text" value={logradouro} onChange={(e) => setLogradouro(e.target.value)} className="w-full px-3 py-2.5 glass-input border border-slate-300 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 text-sm" /></div>
                             <div className="col-span-4 sm:col-span-3"><label className="text-[10px] font-bold text-slate-500 dark:text-white/50 uppercase mb-1 block">Número</label><input type="text" value={numero} onChange={(e) => setNumero(e.target.value)} className="w-full px-3 py-2.5 glass-input border border-slate-300 dark:border-white/10 rounded-xl outline-none focus:border-brand-500 text-sm" /></div>

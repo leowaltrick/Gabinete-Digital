@@ -4,15 +4,7 @@ import { MapPin, Maximize2, Loader2 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import * as L from 'leaflet';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
-
-// Fix Leaflet marker icon
-const icon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
+import { DemandStatus, DemandPriority } from '../types';
 
 interface DemandMiniMapProps {
   demandId?: string; // Legacy prop, can act as entityId
@@ -23,12 +15,44 @@ interface DemandMiniMapProps {
   address?: string;
   onClick: () => void;
   onLocationUpdate?: (lat: number, lon: number) => void;
+  status?: DemandStatus;
+  priority?: DemandPriority;
 }
 
-const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, tableName = 'demands', lat, lon, address, onClick, onLocationUpdate }) => {
+const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ 
+    demandId, 
+    entityId, 
+    tableName = 'demands', 
+    lat, 
+    lon, 
+    address, 
+    onClick, 
+    onLocationUpdate,
+    status,
+    priority
+}) => {
   const [coords, setCoords] = useState<{lat: number, lon: number} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const activeId = entityId || demandId;
+
+  // Dynamic Icon Logic
+  const getMarkerColor = () => {
+      if (tableName === 'citizens') return 'blue';
+      if (status === DemandStatus.COMPLETED) return 'green';
+      if (priority === DemandPriority.HIGH) return 'red';
+      if (status === DemandStatus.IN_PROGRESS) return 'orange';
+      if (priority === DemandPriority.MEDIUM) return 'gold';
+      return 'blue';
+  };
+
+  const icon = new L.Icon({
+      iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${getMarkerColor()}.png`,
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+  });
 
   useEffect(() => {
     // If coords are provided, use them immediately
@@ -104,16 +128,22 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
   };
 
   return (
-    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer" onClick={handleClick}>
-      {isLoading ? (
-          <div className="w-full h-full bg-slate-50 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400">
-              <Loader2 className="w-6 h-6 animate-spin mb-2 text-brand-500" />
-              <span className="text-xs">Buscando endereço...</span>
-          </div>
-      ) : coords ? (
+    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group cursor-pointer bg-slate-50 dark:bg-white/5" onClick={handleClick}>
+      
+      {/* Loading Notification (Styled like MapVisualizer) */}
+      {isLoading && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-4 py-2 rounded-full shadow-xl border border-brand-100 dark:border-white/10 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                <span className="text-xs font-bold text-slate-700 dark:text-white">Carregando mapa...</span>
+            </div>
+        </div>
+      )}
+
+      {coords ? (
         <>
             <MapContainer 
-                key={`${coords.lat}-${coords.lon}`} 
+                key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
                 center={[coords.lat, coords.lon]} 
                 zoom={15} 
                 scrollWheelZoom={false} 
@@ -123,22 +153,31 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ demandId, entityId, table
                 attributionControl={false}
                 style={{ width: '100%', height: '100%' }}
             >
+                {/* CartoDB Positron - Cleaner look for MiniMap */}
                 <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                    attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
                 <Marker position={[coords.lat, coords.lon]} icon={icon} />
             </MapContainer>
             {/* Click Capture Layer to ensure onClick always fires */}
             <div className="absolute inset-0 z-[500] bg-transparent" onClick={handleClick} />
         </>
-      ) : null}
+      ) : (
+          // Placeholder while loading if coords aren't ready yet
+          <div className="w-full h-full bg-slate-100/50 dark:bg-white/5 flex items-center justify-center">
+             {/* Background pattern or subtle animation could go here */}
+          </div>
+      )}
       
       {/* Hover Overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors z-[600] flex items-center justify-center pointer-events-none">
-          <div className="bg-white/90 dark:bg-black/80 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 duration-200">
-              <Maximize2 className="w-3 h-3" /> Ver no Mapa Global
-          </div>
-      </div>
+      {!isLoading && (
+        <div className="absolute inset-0 bg-brand-900/0 group-hover:bg-brand-900/10 transition-colors z-[600] flex items-center justify-center pointer-events-none">
+            <div className="bg-white/90 dark:bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-bold text-slate-900 dark:text-white opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 shadow-lg border border-slate-200 dark:border-white/10 flex items-center gap-2">
+                <Maximize2 className="w-3 h-3" /> Ver no Mapa Global
+            </div>
+        </div>
+      )}
     </div>
   );
 };

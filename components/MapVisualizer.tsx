@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMap } from 'react-leaflet';
 import * as L from 'leaflet';
 import { Demand, Citizen, DemandStatus, DemandPriority } from '../types';
-import { Map as MapIcon, Users, LayoutList, Plus, Minus, Layers } from 'lucide-react';
+import { Plus, Minus, Loader2 } from 'lucide-react';
 
 // Fix Leaflet default marker icon globally
 if (L.Icon && L.Icon.Default) {
@@ -30,7 +30,7 @@ interface MapVisualizerProps {
 const iconCache: Record<string, L.Icon> = {};
 
 const getMarkerColor = (type: 'citizen' | 'demand', status?: DemandStatus, priority?: DemandPriority): string => {
-    if (type === 'citizen') return 'blue'; // Changed to Blue for consistency
+    if (type === 'citizen') return 'blue'; 
     if (status === DemandStatus.COMPLETED) return 'green';
     if (priority === DemandPriority.HIGH) return 'red';
     if (status === DemandStatus.IN_PROGRESS) return 'orange';
@@ -58,42 +58,57 @@ const getCachedIcon = (type: 'citizen' | 'demand', status?: DemandStatus, priori
     return icon;
 };
 
+// --- MAP LIFECYCLE COMPONENT ---
+// Fixes the issue where map doesn't render pins correctly on first load due to container size
+const MapLifecycle = ({ markers }: { markers: any[] }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        // Force map to recalculate size when it mounts or markers change significantly
+        // This fixes the "gray tiles" or "missing pins" issue on navigation
+        const timer = setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+        return () => clearTimeout(timer);
+    }, [map]);
+
+    return null;
+};
+
 // --- DOT DENSITY LAYER (For Citizens) ---
-// Renders small, semi-transparent circles to show density while keeping individual points clickable
 const DotDensityLayer = ({ markers }: { markers: any[] }) => {
     const map = useMap();
     const [visibleDots, setVisibleDots] = useState<any[]>([]);
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const updateVisible = useCallback(() => {
         if (!map) return;
-        const bounds = map.getBounds();
         
-        // Dot Density can handle many more points than Icon Markers
-        let maxVisible = 2000; 
-
-        const paddedBounds = bounds.pad(0.2); 
-        const inView = markers.filter(m => paddedBounds.contains(L.latLng(m.lat, m.lon)));
-        
-        setVisibleDots(inView.slice(0, maxVisible));
+        map.whenReady(() => {
+            const bounds = map.getBounds();
+            const paddedBounds = bounds.pad(0.1); 
+            
+            // Filter only what is visible
+            const inView = markers.filter(m => paddedBounds.contains(L.latLng(m.lat, m.lon)));
+            setVisibleDots(inView.slice(0, 1000)); // Cap for performance
+        });
     }, [map, markers]);
 
-    useEffect(() => { updateVisible(); }, [markers]);
-
+    // Update when markers prop changes or map moves
     useEffect(() => {
-        if (!map) return;
-        const handleMapEvent = () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            timerRef.current = setTimeout(updateVisible, 200); // Fast debounce
+        // Immediate update on data change
+        updateVisible(); 
+
+        const handler = () => {
+             requestAnimationFrame(updateVisible);
         };
-        map.on('moveend', handleMapEvent);
-        map.on('zoomend', handleMapEvent);
+        
+        map.on('moveend', handler);
+        map.on('zoomend', handler);
         return () => {
-            map.off('moveend', handleMapEvent);
-            map.off('zoomend', handleMapEvent);
-            if (timerRef.current) clearTimeout(timerRef.current);
+            map.off('moveend', handler);
+            map.off('zoomend', handler);
         };
-    }, [map, updateVisible]);
+    }, [map, updateVisible, markers]); // Added markers to dependency to trigger on load
 
     return (
         <>
@@ -101,19 +116,27 @@ const DotDensityLayer = ({ markers }: { markers: any[] }) => {
                 <CircleMarker
                     key={`dot-${m.id}`}
                     center={[m.lat, m.lon]}
-                    radius={5} // Small dot
+                    radius={5}
                     pathOptions={{
-                        fillColor: '#0ea5e9', // Brand-500 (Blue)
-                        fillOpacity: 0.6,     // Transparency creates density effect on overlap
-                        color: '#0284c7',     // Brand-600 (Darker Blue Border)
+                        fillColor: '#0ea5e9', // Brand-500
+                        fillOpacity: 0.6,
+                        color: '#0284c7',
                         weight: 1,
                         opacity: 0.5
+                    }}
+                    eventHandlers={{
+                        click: () => {
+                            const event = new CustomEvent('navigate-to-map', { 
+                                detail: { citizenId: m.id } 
+                            });
+                            window.dispatchEvent(event);
+                        }
                     }}
                 >
                      <Popup>
                         <div className="p-1 min-w-[150px]">
                             <h3 className="font-bold text-sm text-slate-900">{m.name}</h3>
-                            <p className="text-xs text-slate-500">{m.bairro}</p>
+                            <p className="text-xs text-slate-500">{m.bairro || 'Sem Bairro'}</p>
                         </div>
                     </Popup>
                 </CircleMarker>
@@ -122,7 +145,7 @@ const DotDensityLayer = ({ markers }: { markers: any[] }) => {
     );
 };
 
-// --- STANDARD MARKER LAYER (For Demands) ---
+// --- MARKER LAYER (For Demands) ---
 interface MarkerLayerProps {
     markers: any[];
     onViewDemand?: (id: string) => void;
@@ -131,48 +154,35 @@ interface MarkerLayerProps {
 const MarkerLayer: React.FC<MarkerLayerProps> = ({ markers, onViewDemand }) => {
     const map = useMap();
     const [visibleMarkers, setVisibleMarkers] = useState<any[]>([]);
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
+    
     const updateVisible = useCallback(() => {
         if (!map) return;
-        
-        const bounds = map.getBounds();
-        const zoom = map.getZoom();
-        
-        let maxVisible = isMobile ? 40 : 150; 
-        
-        if (markers.length <= maxVisible) {
-             if (visibleMarkers.length !== markers.length) {
-                 setVisibleMarkers(markers);
-             }
-             return;
-        }
 
-        if (zoom < 15) maxVisible = Math.floor(maxVisible * 0.6);
+        map.whenReady(() => {
+            const bounds = map.getBounds();
+            const paddedBounds = bounds.pad(0.2);
+            
+            const inView = markers.filter(m => paddedBounds.contains(L.latLng(m.lat, m.lon)));
+            setVisibleMarkers(inView.slice(0, 200)); // Cap at 200 markers for DOM performance
+        });
+    }, [map, markers]);
 
-        const paddedBounds = bounds.pad(isMobile ? 0.1 : 0.2); 
-        const inView = markers.filter(m => paddedBounds.contains(L.latLng(m.lat, m.lon)));
-        
-        setVisibleMarkers(inView.slice(0, maxVisible));
-    }, [map, markers, isMobile]);
-
-    useEffect(() => { updateVisible(); }, [markers]);
-
+    // Update when markers prop changes or map moves
     useEffect(() => {
-        if (!map) return;
-        const handleMapEvent = () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            timerRef.current = setTimeout(updateVisible, 250);
+        // Immediate update on data change
+        updateVisible();
+
+        const handler = () => {
+            requestAnimationFrame(updateVisible);
         };
-        map.on('moveend', handleMapEvent);
-        map.on('zoomend', handleMapEvent);
+        
+        map.on('moveend', handler);
+        map.on('zoomend', handler);
         return () => {
-            map.off('moveend', handleMapEvent);
-            map.off('zoomend', handleMapEvent);
-            if (timerRef.current) clearTimeout(timerRef.current);
+            map.off('moveend', handler);
+            map.off('zoomend', handler);
         };
-    }, [map, updateVisible]);
+    }, [map, updateVisible, markers]); // Added markers to dependency
 
     return (
         <>
@@ -182,7 +192,11 @@ const MarkerLayer: React.FC<MarkerLayerProps> = ({ markers, onViewDemand }) => {
                     position={[m.lat, m.lon]}
                     icon={getCachedIcon(m.type, m.status, m.priority)}
                     eventHandlers={{
-                        click: () => { if (isMobile) map.flyTo([m.lat, m.lon], 16, { duration: 0.5 }); }
+                        click: () => { 
+                            if (window.innerWidth < 768) {
+                                map.flyTo([m.lat, m.lon], 16, { duration: 0.5 });
+                            }
+                        }
                     }}
                 >
                     <Popup>
@@ -205,24 +219,10 @@ const MarkerLayer: React.FC<MarkerLayerProps> = ({ markers, onViewDemand }) => {
 
 const CustomControls = ({ zoomIn, zoomOut }: { zoomIn: () => void, zoomOut: () => void }) => (
     <div className="flex flex-col gap-2 pointer-events-auto shadow-lg rounded-xl overflow-hidden border border-slate-200 dark:border-white/10">
-        <button onClick={zoomIn} className="w-10 h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-white transition-colors border-b border-slate-100 dark:border-white/10"><Plus className="w-5 h-5" /></button>
-        <button onClick={zoomOut} className="w-10 h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-white transition-colors"><Minus className="w-5 h-5" /></button>
+        <button onClick={zoomIn} className="w-12 h-12 md:w-10 md:h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-white transition-colors border-b border-slate-100 dark:border-white/10 active:bg-slate-100"><Plus className="w-6 h-6 md:w-5 md:h-5" /></button>
+        <button onClick={zoomOut} className="w-12 h-12 md:w-10 md:h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-white transition-colors active:bg-slate-100"><Minus className="w-6 h-6 md:w-5 md:h-5" /></button>
     </div>
 );
-
-const HybridMapLayer = ({ markers, viewMode, onViewDemand }: any) => {
-    if (viewMode === 'citizens') {
-        return <DotDensityLayer markers={markers} />;
-    }
-
-    return (
-        <MarkerLayer 
-            key={`ml-${markers.length}-${markers[0]?.id || 'empty'}`} 
-            markers={markers} 
-            onViewDemand={onViewDemand} 
-        />
-    );
-};
 
 // Map Controller to handle focus updates
 const MapController = ({ focus }: { focus: { lat: number, lon: number } | null }) => {
@@ -237,6 +237,7 @@ const MapController = ({ focus }: { focus: { lat: number, lon: number } | null }
 
 const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDemand, preloadedMarkers, currentViewMode, onChangeViewMode, mapFocus }) => {
   const mapRef = useRef<L.Map | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const activeCenter: [number, number] = defaultCenter ? [defaultCenter.lat, defaultCenter.lon] : [-23.5505, -46.6333];
 
   const activeMarkers = useMemo(() => {
@@ -246,26 +247,37 @@ const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDema
       return [];
   }, [currentViewMode, preloadedMarkers]);
 
+  // Handle Loading Notification
+  useEffect(() => {
+      // Start loading immediately when dependencies change
+      setIsUpdating(true);
+      
+      // Stop loading only after a brief delay to ensure UI has painted
+      const timer = setTimeout(() => {
+          setIsUpdating(false);
+      }, 500); 
+      
+      return () => clearTimeout(timer);
+  }, [activeMarkers, currentViewMode, preloadedMarkers]);
+
   const handleZoomIn = () => mapRef.current?.zoomIn();
   const handleZoomOut = () => mapRef.current?.zoomOut();
 
   return (
     <div className={`transition-all duration-300 ease-in-out border-slate-200 dark:border-white/10 shadow-sm bg-slate-100 dark:bg-slate-900 overflow-hidden h-full w-full relative`}>
         
-        {/* Floating Controls - Only View Toggle */}
-        <div className="absolute left-4 bottom-4 md:bottom-8 z-[400] pointer-events-none flex flex-col gap-2">
-            <div className="pointer-events-auto bg-white/90 dark:bg-black/80 backdrop-blur-md p-1.5 rounded-xl shadow-lg border border-slate-200 dark:border-white/10 flex gap-1">
-                <button onClick={() => onChangeViewMode('demands')} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${currentViewMode === 'demands' ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10'}`}>
-                    <LayoutList className="w-4 h-4" /> <span className="hidden sm:inline">Demandas</span>
-                </button>
-                {/* Updated Color to Blue (Brand-600) */}
-                <button onClick={() => onChangeViewMode('citizens')} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${currentViewMode === 'citizens' ? 'bg-brand-600 text-white' : 'text-slate-600 dark:text-white hover:bg-slate-100 dark:hover:bg-white/10'}`}>
-                    <Users className="w-4 h-4" /> <span className="hidden sm:inline">Cidadãos</span>
-                </button>
+        {/* Loading Indicator */}
+        {isUpdating && (
+            <div className="absolute top-20 md:top-4 left-1/2 -translate-x-1/2 z-[1000] animate-in fade-in zoom-in-95 duration-200 pointer-events-none">
+                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md px-4 py-2 rounded-full shadow-xl border border-brand-100 dark:border-white/10 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+                    <span className="text-xs font-bold text-slate-700 dark:text-white">Atualizando mapa...</span>
+                </div>
             </div>
-        </div>
+        )}
 
-        <div className="absolute right-4 bottom-4 md:bottom-8 z-[400] flex flex-col gap-3 pointer-events-none">
+        {/* Floating Controls - Positioned higher on mobile to avoid bottom nav overlap */}
+        <div className="absolute right-4 bottom-24 md:bottom-8 z-[400] flex flex-col gap-3 pointer-events-none">
              <div className="pointer-events-auto">
                 <CustomControls zoomIn={handleZoomIn} zoomOut={handleZoomOut} />
              </div>
@@ -279,11 +291,20 @@ const MapVisualizer: React.FC<MapVisualizerProps> = ({ defaultCenter, onViewDema
             zoomControl={false} 
             scrollWheelZoom={true} 
             dragging={true}
-            preferCanvas={true}
+            preferCanvas={true} // Performance boost
         >
-            {/* CartoDB Positron Tile Layer */}
-            <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' />
-            <HybridMapLayer markers={activeMarkers} viewMode={currentViewMode} onViewDemand={onViewDemand} />
+            <MapLifecycle markers={activeMarkers} />
+            
+            {/* CartoDB Positron Tile Layer - Clean Look */}
+            <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>' />
+            
+            {/* Layer Switching */}
+            {currentViewMode === 'citizens' ? (
+                <DotDensityLayer markers={activeMarkers} />
+            ) : (
+                <MarkerLayer markers={activeMarkers} onViewDemand={onViewDemand} />
+            )}
+
             <MapController focus={mapFocus || null} />
         </MapContainer>
     </div>

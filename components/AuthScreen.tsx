@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, Role } from '../types';
-import { LogIn, Loader2, AlertCircle, Mail, Lock, Check, KeyRound, ArrowRight, Fingerprint, Building2, LayoutList, Users, Map as MapIcon, Calendar, BarChart3, ShieldCheck } from 'lucide-react';
+import { LogIn, Loader2, AlertCircle, Mail, Lock, Check, KeyRound, ArrowRight, Fingerprint, Building2, LayoutList, Users, Map as MapIcon, Calendar, BarChart3, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 
 interface AuthScreenProps {
@@ -65,10 +65,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   // Login State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   // New Password State
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [tempUserData, setTempUserData] = useState<any>(null);
 
   // UI State
@@ -130,14 +134,15 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             return;
         }
 
-        await completeLogin(data);
+        // Existing user login
+        await completeLogin(data, false, false);
 
       } else {
         // DEMO MODE
         await new Promise(resolve => setTimeout(resolve, 800));
         if (email === 'admin@admin' && password === 'admin') {
-             const mockUser: User = { id: 'demo-admin', email: 'admin@admin', name: 'Administrador Demo', role: 'administrador', avatar: `https://ui-avatars.com/api/?name=Admin&background=0284c7&color=fff` };
-             await completeLogin(mockUser, true);
+             const mockUser: User = { id: 'demo-admin', email: 'admin@admin', name: 'Administrador Demo', role: 'administrador', avatar: `https://ui-avatars.com/api/?name=Admin&background=0284c7&color=fff`, firstLogin: true };
+             await completeLogin(mockUser, true, true);
         } else {
             setError("Credenciais inválidas.");
             setIsLoading(false);
@@ -167,7 +172,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               const { error: updateError } = await supabase.from('system_users').update({ senha_hash: newHash, last_login: new Date().toISOString() }).eq('id', tempUserData.id);
               if (updateError) throw updateError;
               const updatedUser = { ...tempUserData, last_login: new Date().toISOString() };
-              await completeLogin(updatedUser);
+              // First time login completed
+              await completeLogin(updatedUser, false, true);
           }
       } catch (err: any) {
           setError("Erro ao salvar nova senha: " + err.message);
@@ -175,11 +181,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       }
   };
 
-  const completeLogin = async (userData: any, isDemo = false) => {
+  const completeLogin = async (userData: any, isDemo = false, isFirstLogin = false) => {
       if (!isDemo && isSupabaseConfigured() && supabase && step === 'login') {
+         // Update last_login for returning users
          await supabase.from('system_users').update({ last_login: new Date().toISOString() }).eq('id', userData.id);
       }
-      const authenticatedUser: User = isDemo ? userData : { id: userData.id, email: userData.email, name: userData.nome, role: userData.perfil as Role, avatar: `https://ui-avatars.com/api/?name=${userData.nome}&background=0284c7&color=fff` };
+      
+      const authenticatedUser: User = isDemo ? userData : { 
+          id: userData.id, 
+          email: userData.email, 
+          name: userData.nome, 
+          role: userData.perfil as Role, 
+          avatar: `https://ui-avatars.com/api/?name=${userData.nome}&background=0284c7&color=fff`,
+          firstLogin: isFirstLogin 
+      };
+
       setIsExiting(true);
       setTimeout(() => {
           localStorage.setItem('geo_user', JSON.stringify(authenticatedUser));
@@ -269,14 +285,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                                       <Lock className="w-5 h-5" />
                                   </div>
                                   <input
-                                      type="password"
+                                      type={showPassword ? 'text' : 'password'}
                                       value={password}
                                       onChange={(e) => setPassword(e.target.value)}
-                                      className="block w-full pl-11 pr-4 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm"
+                                      className="block w-full pl-11 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold shadow-sm"
                                       placeholder="Senha"
                                       required
                                       autoComplete="current-password"
                                   />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                  >
+                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                  </button>
                               </div>
                           </div>
 
@@ -293,10 +316,40 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                       <form onSubmit={handleNewPasswordSubmit} className="space-y-6 animate-in slide-in-from-right-8 duration-500">
                           <div className="space-y-4">
                               <div className="relative group">
-                                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full pl-5 pr-4 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" placeholder="Nova Senha" maxLength={12} autoComplete="new-password" />
+                                  <input 
+                                    type={showNewPassword ? 'text' : 'password'} 
+                                    value={newPassword} 
+                                    onChange={(e) => setNewPassword(e.target.value)} 
+                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" 
+                                    placeholder="Nova Senha" 
+                                    maxLength={12} 
+                                    autoComplete="new-password" 
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                  >
+                                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                  </button>
                               </div>
                               <div className="relative group">
-                                  <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full pl-5 pr-4 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" placeholder="Confirmar Senha" maxLength={12} autoComplete="new-password" />
+                                  <input 
+                                    type={showConfirmPassword ? 'text' : 'password'} 
+                                    value={confirmPassword} 
+                                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                                    className="block w-full pl-5 pr-12 py-4 bg-white/60 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-2xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all outline-none font-bold" 
+                                    placeholder="Confirmar Senha" 
+                                    maxLength={12} 
+                                    autoComplete="new-password" 
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                                  >
+                                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                  </button>
                               </div>
                           </div>
 
@@ -342,12 +395,12 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                   {/* Feature Grid */}
                   <div className="grid grid-cols-2 gap-4">
                       {[
-                          { title: "Central de Demandas", icon: LayoutList, desc: "Acompanhe solicitações em tempo real." },
-                          { title: "Base de Cidadãos", icon: Users, desc: "Histórico completo de atendimentos." },
-                          { title: "Mapa de Calor", icon: MapIcon, desc: "Geolocalização de ocorrências." },
-                          { title: "Gestão de Prazos", icon: Calendar, desc: "Alertas automáticos de vencimento." },
-                          { title: "Analytics", icon: BarChart3, desc: "Indicadores de desempenho do gabinete." },
-                          { title: "Controle de Acesso", icon: ShieldCheck, desc: "Permissões granulares por perfil." },
+                          { title: "Gestão de Demandas", icon: LayoutList, desc: "Controle via Lista, Kanban e Calendário." },
+                          { title: "Base de Cidadãos", icon: Users, desc: "Cadastro completo com histórico e mapa." },
+                          { title: "Mapa Interativo", icon: MapIcon, desc: "Visualização geoespacial de ocorrências." },
+                          { title: "Agenda e Prazos", icon: Calendar, desc: "Monitoramento de tarefas e vencimentos." },
+                          { title: "Dashboard e KPIs", icon: BarChart3, desc: "Métricas de desempenho em tempo real." },
+                          { title: "Segurança e Acesso", icon: ShieldCheck, desc: "Controle granular de permissões." },
                       ].map((item, i) => (
                           <div key={i} className="bg-white/60 dark:bg-black/40 backdrop-blur-md border border-white/40 dark:border-white/10 p-4 rounded-2xl shadow-sm hover:bg-white/80 dark:hover:bg-white/10 transition-colors duration-300">
                               <div className="w-10 h-10 rounded-xl bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-brand-600 dark:text-brand-400 mb-3">

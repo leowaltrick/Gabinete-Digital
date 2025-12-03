@@ -48,11 +48,15 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
   };
 
   // Merge and sort all upcoming items for the sidebar
+  // Filter items greater than or equal to the start of the currently viewed month
+  const startOfCurrentViewMonth = new Date(year, month, 1);
+  
   const upcomingDeadlines = [
       ...(showDemands ? demands.filter(d => d.deadline && d.status !== DemandStatus.COMPLETED).map(d => ({ type: 'demand', data: d, date: new Date(d.deadline!) })) : []),
       ...(showChecklists ? interactions.filter(i => i.type === 'checklist' && i.deadline && !i.isCompleted).map(i => ({ type: 'checklist', data: i, date: new Date(i.deadline!) })) : []),
-      ...(showNotices ? notices.filter(n => new Date(n.date) >= new Date()).map(n => ({ type: 'notice', data: n, date: new Date(n.date) })) : [])
+      ...(showNotices ? notices.filter(n => new Date(n.date)).map(n => ({ type: 'notice', data: n, date: new Date(n.date) })) : [])
   ]
+  .filter(item => item.date >= startOfCurrentViewMonth) // Filter from current month onwards
   .sort((a, b) => a.date.getTime() - b.date.getTime())
   .slice(0, 15);
 
@@ -120,7 +124,11 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
                         </div>
                 ))}
                 {dayDemands.slice(0, 3 - dayNotices.length).map(d => (
-                    <div key={d.id} className={`w-full text-left text-[9px] px-1.5 py-0.5 rounded truncate font-medium flex items-center gap-1 ${getPriorityColor(d.priority)}`}>
+                    <div 
+                        key={d.id} 
+                        onClick={(e) => { e.stopPropagation(); onEditDemand(d); }}
+                        className={`w-full text-left text-[9px] px-1.5 py-0.5 rounded truncate font-medium flex items-center gap-1 cursor-pointer hover:brightness-95 active:scale-95 transition-all ${getPriorityColor(d.priority)}`}
+                    >
                         {d.title}
                     </div>
                 ))}
@@ -222,7 +230,11 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                         {/* Selected Day Items */}
                         {[...selectedDayEvents.notices, ...selectedDayEvents.demands, ...selectedDayEvents.checklists].map((item: any, idx) => (
-                             <div key={idx} className="p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+                             <div 
+                                key={idx} 
+                                onClick={() => item.type === 'demand' && onEditDemand(item)}
+                                className={`p-3 bg-white dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10 ${item.type === 'demand' ? 'cursor-pointer hover:border-brand-200 hover:shadow-sm transition-all' : ''}`}
+                             >
                                  <p className="text-sm font-bold text-slate-800 dark:text-white line-clamp-2">
                                      {item.title || item.text}
                                  </p>
@@ -244,7 +256,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
                             Próximos Prazos
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-white/50">
-                            Visão geral de urgências e avisos
+                            A partir de {monthNames[month]}
                         </p>
                     </div>
                     
@@ -256,7 +268,7 @@ const CalendarPage: React.FC<CalendarPageProps> = ({ demands, interactions = [],
                             </div>
                         ) : (
                             upcomingDeadlines.map((item: any, idx) => {
-                                const isToday = item.date.getDate() === new Date().getDate();
+                                const isToday = item.date.getDate() === new Date().getDate() && item.date.getMonth() === new Date().getMonth();
                                 const colorClass = item.type === 'notice' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400' :
                                                    item.type === 'demand' ? 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-500/10 dark:text-amber-400' :
                                                    'bg-slate-50 text-slate-600 border-slate-100 dark:bg-white/5 dark:text-slate-400';
