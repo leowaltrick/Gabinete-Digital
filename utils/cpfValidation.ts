@@ -24,6 +24,14 @@ export const formatPhone = (value: string) => {
   return v;
 };
 
+export const formatCEP = (value: string) => {
+  const v = value.replace(/\D/g, "");
+  if (v.length > 5) {
+    return v.replace(/^(\d{5})(\d{1,3})/, "$1-$2");
+  }
+  return v;
+};
+
 export const stripNonDigits = (value: string) => {
     return value.replace(/\D/g, '');
 };
