@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { MapPin, Maximize2, Loader2, ExternalLink } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, CircleMarker } from 'react-leaflet';
@@ -12,7 +13,7 @@ interface DemandMiniMapProps {
   lat?: number;
   lon?: number;
   address?: string;
-  onClick: () => void;
+  onClick: (lat?: number, lon?: number) => void;
   onLocationUpdate?: (lat: number, lon: number) => void;
   status?: DemandStatus;
   priority?: DemandPriority;
@@ -112,16 +113,18 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   // Static placeholder if no coords
   if (!coords && !isLoading) {
       return (
-        <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10 cursor-pointer hover:bg-slate-200 dark:hover:bg-white/10 transition-colors" onClick={onClick}>
+        <div className="w-full h-48 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center text-slate-400 border border-slate-200 dark:border-white/10">
             <MapPin className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs font-bold">Localização não definida</span>
-            <span className="text-[10px] opacity-70 mt-1">Clique para buscar</span>
+            <span className="text-[10px] opacity-70 mt-1">Aguardando endereço...</span>
         </div>
       );
   }
 
   return (
-    <div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-50 dark:bg-white/5">
+    <div 
+        className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 group bg-slate-50 dark:bg-white/5"
+    >
       
       {/* 1. Map Layer - Static Visualization */}
       {coords && (
@@ -174,19 +177,18 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
         </div>
       )}
       
-      {/* 3. Explicit Expand Button - Primary Interaction */}
+      {/* 3. Explicit Expand Button - Visual Cue - ONLY CLICKABLE ELEMENT */}
       {!isLoading && coords && (
         <button 
             type="button"
             onClick={(e) => {
-                e.preventDefault();
                 e.stopPropagation();
-                onClick();
+                // Pass current coords to handler to avoid stale parent state issues
+                onClick(coords.lat, coords.lon);
             }}
-            className="absolute top-3 right-3 z-[400] pointer-events-auto flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-white/10 px-3 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all group/btn hover:scale-105 active:scale-95"
-            title="Ver no mapa completo"
+            className="absolute top-3 right-3 z-[400] flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-white/10 px-3 py-1.5 rounded-lg shadow-md group-hover:scale-105 transition-transform cursor-pointer pointer-events-auto hover:bg-slate-100 dark:hover:bg-slate-800"
         >
-            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider group-hover/btn:text-brand-600 dark:group-hover/btn:text-brand-400">Expandir</span>
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider text-brand-600 dark:text-brand-400">Expandir</span>
             <Maximize2 className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
         </button>
       )}

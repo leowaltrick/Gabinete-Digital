@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Demand, Citizen, DemandStatus, DemandPriority, DemandInteraction } from '../types';
 import { X, Calendar, MapPin, Clock, Edit3, FileText, CheckSquare, Send, Trash2, Plus, MessageSquare, Check, ChevronLeft, ChevronRight, Tag, ExternalLink, Mail, Phone, MessageCircle, User as UserIcon, CheckCircle2, Zap, AlertCircle } from 'lucide-react';
@@ -318,13 +319,16 @@ const DemandDetailsModal: React.FC<DemandDetailsModalProps> = ({
       window.open(`mailto:${email}`, '_blank');
   };
 
-  const handleMapClick = () => {
-      // Validar se coordenadas existem e não são nulas
-      const hasCoords = demand.lat !== null && demand.lat !== undefined && demand.lon !== null && demand.lon !== undefined;
+  const handleMapClick = (lat?: number, lon?: number) => {
+      // Validar se coordenadas existem e não são nulas. Use arguments if passed (from MiniMap click)
+      const targetLat = lat ?? demand.lat;
+      const targetLon = lon ?? demand.lon;
+      
+      const hasCoords = targetLat !== null && targetLat !== undefined && targetLon !== null && targetLon !== undefined;
       
       if (hasCoords && onMapFocus) {
           onClose(); // Fecha o modal atual
-          onMapFocus(demand.lat!, demand.lon!, 'demands', demand.id); // Redireciona
+          onMapFocus(targetLat!, targetLon!, 'demands', demand.id); // Redireciona
       } else {
           // Se não houver coordenadas ou função, não faz nada ou avisa
           if (onNotification && !hasCoords) {

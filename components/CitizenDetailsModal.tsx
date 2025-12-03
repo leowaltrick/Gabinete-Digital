@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Citizen, Demand, DemandStatus } from '../types';
 import { X, MapPin, Phone, Mail, PlusCircle, Edit3, ChevronLeft, ChevronRight, BarChart3, User, ExternalLink, MessageCircle, FileText, AlignLeft } from 'lucide-react';
@@ -64,13 +65,16 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
       fetchHistory();
   }, [citizen.id]);
 
-  const handleMapClick = () => {
-      // Validar se coordenadas existem e não são nulas
-      const hasCoords = citizen.lat !== null && citizen.lat !== undefined && citizen.lon !== null && citizen.lon !== undefined;
+  const handleMapClick = (lat?: number, lon?: number) => {
+      // Use passed coords (from map component) or fallback to citizen prop
+      const targetLat = lat ?? citizen.lat;
+      const targetLon = lon ?? citizen.lon;
+      
+      const hasCoords = targetLat !== null && targetLat !== undefined && targetLon !== null && targetLon !== undefined;
       
       if (hasCoords && onMapFocus) {
           onClose(); // Fecha o modal atual
-          onMapFocus(citizen.lat!, citizen.lon!, 'citizens', citizen.id); // Redireciona
+          onMapFocus(targetLat!, targetLon!, 'citizens', citizen.id); // Redireciona
       } else {
           // Se não houver coordenadas ou função, não faz nada ou avisa
           if (onNotification && !hasCoords) {
