@@ -21,6 +21,8 @@ interface DemandMiniMapProps {
 const DemandMiniMap: React.FC<DemandMiniMapProps> = ({ 
     lat, 
     lon, 
+    demandId,
+    entityId,
     tableName = 'demands',
     onClick, 
     status,
@@ -53,7 +55,21 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   const handleExpandClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
+      
       if (hasCoords) {
+          // DISPATCH GLOBAL EVENT
+          // This bypasses prop drilling and modal focus issues by notifying the root App component directly
+          const event = new CustomEvent('navigate-to-map', { 
+              detail: { 
+                  lat, 
+                  lon, 
+                  type: tableName,
+                  id: entityId || demandId // Pass ID to auto-filter on the map
+              } 
+          });
+          window.dispatchEvent(event);
+
+          // Call local onClick as fallback/complement if needed
           onClick(lat, lon);
       }
   };

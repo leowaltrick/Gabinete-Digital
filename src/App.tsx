@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback, Suspense, useRef } from 'react';
 import { Database, AlertTriangle, Clock, CheckCircle2, Activity, FilePlus, Zap, TrendingUp, ArrowUpRight, Calendar, Filter, PieChart, BarChart2, ChevronDown, X, AlertCircle, MapPin, Loader2, LogOut, Sun, Moon, User as UserIcon, Wifi, WifiOff, CloudOff, Users, ArrowRight, Phone, Mail, UserPlus, BarChart3 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -197,7 +198,7 @@ const App: React.FC = () => {
         if (themePreference) setThemeMode(themePreference);
     }, [themePreference]);
 
-    // 1. MAIN FILTER LOGIC - Moved up to be available for Map Markers
+    // 1. MAIN FILTER LOGIC
     const filteredDemands = useMemo(() => {
         let startTimestamp: number | null = null;
         let endTimestamp: number | null = null;
@@ -261,7 +262,7 @@ const App: React.FC = () => {
         });
     }, [demands, filters]);
 
-    // 2. CITIZEN FILTER LOGIC - For Map
+    // 2. CITIZEN FILTER LOGIC
     const filteredCitizens = useMemo(() => {
         const searchLower = filters.search.toLowerCase();
         if (!filters.search) return citizens;
@@ -275,7 +276,7 @@ const App: React.FC = () => {
         });
     }, [citizens, filters.search]);
 
-    // 3. MAP MARKERS - Now uses FILTERED data
+    // 3. MAP MARKERS
     const precalculatedMapMarkers = useMemo(() => {
         const markers: any[] = [];
         if (filteredDemands.length > 0) {
@@ -313,6 +314,29 @@ const App: React.FC = () => {
         // 4. Switch View
         setView('map');
     }, []);
+
+    // Global Event Listener for Map Navigation (Fixes Prop Drilling)
+    useEffect(() => {
+        const handleMapNav = (e: CustomEvent) => {
+            const { lat, lon, type, id, demandId, citizenId } = e.detail || {};
+            
+            // Normalize ID and Type from older event structures or the new one
+            const targetId = id || demandId || citizenId;
+            const targetType = type || (citizenId ? 'citizens' : 'demands');
+
+            if (lat && lon) {
+                // Full navigation with coords
+                handleMapFocus(lat, lon, targetType, targetId);
+            } else if (targetId && targetType === 'demands') {
+                // Fallback for ID only (filters but no zoom if no coords)
+                setSelectedDemandId(targetId);
+                setView('map');
+            }
+        };
+        
+        window.addEventListener('navigate-to-map' as any, handleMapNav);
+        return () => window.removeEventListener('navigate-to-map' as any, handleMapNav);
+    }, [handleMapFocus]);
 
     // Notification for Sync
     useEffect(() => {
