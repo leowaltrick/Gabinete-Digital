@@ -74,7 +74,8 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
       
       if (hasCoords && onMapFocus) {
           onClose(); // Fecha o modal atual
-          onMapFocus(targetLat!, targetLon!, 'citizens', citizen.id); // Redireciona
+          // Pass 'citizens' type and the citizen ID for filtering
+          onMapFocus(targetLat!, targetLon!, 'citizens', citizen.id); 
       } else {
           // Se não houver coordenadas ou função, não faz nada ou avisa
           if (onNotification && !hasCoords) {

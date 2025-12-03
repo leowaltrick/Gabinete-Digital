@@ -184,43 +184,48 @@ const DemandsView: React.FC<DemandsViewProps> = ({
   const canNavigatePrev = currentSelectedIndex > 0;
   const canNavigateNext = currentSelectedIndex !== -1 && currentSelectedIndex < demands.length - 1;
 
-  const renderHeader = () => (
-      <div className="shrink-0 flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-                        <LayoutList className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                        Gestão de Demandas
-                    </h1>
-                </div>
+  const renderHeader = () => {
+      // HIDDEN IN MAP MODE
+      if (viewMode === 'map') return null;
 
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                    <div className="w-full md:w-[280px]">
-                        <SegmentedControl 
-                            value={viewMode}
-                            onChange={(val) => setViewMode(val as any)}
-                            options={[
-                                { value: 'list', label: 'Lista', icon: List },
-                                { value: 'board', label: 'Quadro', icon: Kanban },
-                                { value: 'calendar', label: 'Calendário', icon: CalendarRange },
-                            ]}
-                        />
+      return (
+        <div className="shrink-0 flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+                            <LayoutList className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                            Gestão de Demandas
+                        </h1>
                     </div>
 
-                    <button onClick={onCreateDemand} className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 h-11 shrink-0">
-                        <PlusCircle className="w-5 h-5" />
-                        <span className="whitespace-nowrap">Nova Demanda</span>
-                    </button>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <div className="w-full md:w-[280px]">
+                            <SegmentedControl 
+                                value={viewMode}
+                                onChange={(val) => setViewMode(val as any)}
+                                options={[
+                                    { value: 'list', label: 'Lista', icon: List },
+                                    { value: 'board', label: 'Quadro', icon: Kanban },
+                                    { value: 'calendar', label: 'Calendário', icon: CalendarRange },
+                                ]}
+                            />
+                        </div>
+
+                        <button onClick={onCreateDemand} className="w-full sm:w-auto px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 h-11 shrink-0">
+                            <PlusCircle className="w-5 h-5" />
+                            <span className="whitespace-nowrap">Nova Demanda</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
-      </div>
-  );
+        </div>
+      );
+  };
 
   return (
     <div className="flex flex-col h-full animate-in fade-in zoom-in-95 duration-500 relative">
       
       {/* Standard Layout - Container Width Constrained */}
-      <div className="flex flex-col gap-4 h-full max-w-[1600px] mx-auto w-full">
+      <div className={`flex flex-col gap-4 h-full mx-auto w-full ${viewMode === 'map' ? '' : 'max-w-[1600px]'}`}>
           
           {renderHeader()}
 
