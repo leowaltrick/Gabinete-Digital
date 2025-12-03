@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronRight, MapPin, Filter, CheckCircle2, Clock, Zap, AlertCircle, RotateCcw, User, Tag, Check, X } from 'lucide-react';
 import { FilterState, DemandStatus, DemandPriority } from '../types';
@@ -62,7 +61,7 @@ const NeighborhoodList: React.FC<NeighborhoodListProps> = ({
   }, [items, searchTerm]);
 
   const totalCount = items.length;
-  const filteredCount = Object.values(groupedItems).reduce((acc, curr) => acc + curr.length, 0);
+  const filteredCount = Object.values(groupedItems).reduce((acc, curr: any) => acc + curr.length, 0);
 
   const toggleGroup = (bairro: string) => {
     setExpandedNeighborhoods(prev => ({ ...prev, [bairro]: !prev[bairro] }));
@@ -296,7 +295,7 @@ const NeighborhoodList: React.FC<NeighborhoodListProps> = ({
                     Nenhum registro encontrado nesta região com os filtros atuais.
                 </div>
             ) : (
-                Object.entries(groupedItems).map(([bairro, groupItems]) => {
+                Object.entries(groupedItems).map(([bairro, groupItems]: [string, any]) => {
                     const isSelected = selectedNeighborhood === bairro;
                     const isExpanded = expandedNeighborhoods[bairro];
 
@@ -328,7 +327,7 @@ const NeighborhoodList: React.FC<NeighborhoodListProps> = ({
                             {/* Expanded Items */}
                             {isExpanded && (
                                 <div className="bg-slate-50/50 dark:bg-black/20 border-t border-slate-100 dark:border-white/5">
-                                    {groupItems.map(item => (
+                                    {groupItems.map((item: any) => (
                                         <div 
                                             key={item.id} 
                                             onClick={() => onSelect(item)}

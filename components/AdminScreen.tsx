@@ -397,7 +397,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col gap-4 animate-in slide-in-from-right duration-500 relative w-full">
+    <div className="h-auto md:h-full flex flex-col gap-4 animate-in slide-in-from-right duration-500 relative w-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-2">
@@ -413,9 +413,9 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden relative">
+      <div className="flex-1 flex flex-col w-full relative h-auto md:min-h-0 md:overflow-hidden">
           {activeTab === 'users' && (
-              <div className="h-full flex flex-col gap-4 w-full">
+              <div className="h-auto md:h-full flex flex-col gap-4 w-full">
                     {/* Filters Bar (Moved Above Stats) */}
                     <div className="shrink-0 glass-panel p-2 md:p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-white/10 flex flex-col md:flex-row gap-3 items-center relative z-20 bg-white/80 dark:bg-[#020617]/80 backdrop-blur-xl">
                         <div className="flex-1 w-full relative group">
@@ -442,8 +442,8 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                     </div>
 
                     {/* Users List */}
-                    <div className="flex-1 flex flex-col min-h-0 glass-panel rounded-3xl border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 overflow-hidden shadow-sm relative w-full">
-                        <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
+                    <div className="flex flex-col md:flex-1 md:min-h-0 glass-panel rounded-3xl border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-slate-900/50 md:overflow-hidden shadow-sm relative w-full h-auto">
+                        <div className="w-full h-auto md:flex-1 md:overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                             {/* Desktop Table */}
                             <table className="w-full text-left border-collapse hidden md:table">
                                 <thead className="sticky top-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10 shadow-sm">
@@ -505,7 +505,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
           )}
           
           {activeTab === 'permissions' && (
-              <div className="flex flex-col lg:flex-row h-full glass-panel rounded-3xl overflow-hidden border border-slate-200 dark:border-white/10">
+              <div className="flex flex-col lg:flex-row h-auto lg:h-full glass-panel rounded-3xl lg:overflow-hidden border border-slate-200 dark:border-white/10">
                   {/* Mobile Horizontal Role Selector */}
                   <div className="lg:hidden flex overflow-x-auto gap-2 p-3 border-b border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/5 shrink-0 scrollbar-none">
                       {['administrador', 'chefe_de_gabinete', 'assessor'].map((role) => (
@@ -526,8 +526,8 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
                       ))}
                   </div>
 
-                  <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-transparent">
-                      <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-8 overflow-y-auto custom-scrollbar">
+                  <div className="flex-1 flex flex-col min-h-0 bg-white dark:bg-transparent h-auto lg:h-full">
+                      <div className="flex-1 p-4 md:p-6 lg:p-8 space-y-8 h-auto lg:overflow-y-auto custom-scrollbar pb-24 lg:pb-0">
                           {isConfigLocked && (<div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30 text-amber-800 dark:text-amber-200 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in"><Lock className="w-5 h-5" /><span className="text-sm font-bold">O perfil de Administrador possui acesso total.</span></div>)}
                           
                           {/* Creation Permissions */}
@@ -598,7 +598,7 @@ const AdminScreen: React.FC<AdminScreenProps> = ({
           )}
           
           {activeTab === 'general' && (
-              <div className="glass-panel rounded-3xl border border-slate-200 dark:border-white/10 h-full p-4 md:p-8 flex justify-center items-start w-full overflow-y-auto custom-scrollbar">
+              <div className="glass-panel rounded-3xl border border-slate-200 dark:border-white/10 h-auto md:h-full p-4 md:p-8 flex justify-center items-start w-full md:overflow-y-auto custom-scrollbar pb-24 md:pb-0">
                    <div className="w-full max-w-4xl space-y-8">
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                            {/* City Configuration */}
