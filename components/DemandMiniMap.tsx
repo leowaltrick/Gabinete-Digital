@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { MapPin, Maximize2, Loader2, ExternalLink } from 'lucide-react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, CircleMarker } from 'react-leaflet';
 import * as L from 'leaflet';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
 import { DemandStatus, DemandPriority } from '../types';
@@ -34,9 +34,8 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const activeId = entityId || demandId;
 
-  // Dynamic Icon Logic
+  // Dynamic Icon Logic (Only for Demands now)
   const getMarkerColor = () => {
-      if (tableName === 'citizens') return 'blue';
       if (status === DemandStatus.COMPLETED) return 'green';
       if (priority === DemandPriority.HIGH) return 'red';
       if (status === DemandStatus.IN_PROGRESS) return 'orange';
@@ -129,7 +128,7 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
         <div className="h-full w-full z-0 pointer-events-none">
             {/* @ts-ignore: Suppress strict type check for MapContainer props */}
             <MapContainer 
-                key={`${coords.lat}-${coords.lon}-${getMarkerColor()}`} 
+                key={`${coords.lat}-${coords.lon}-${tableName}`} 
                 center={[coords.lat, coords.lon]} 
                 zoom={15} 
                 scrollWheelZoom={false} 
@@ -148,8 +147,22 @@ const DemandMiniMap: React.FC<DemandMiniMapProps> = ({
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
                 />
-                {/* @ts-ignore: Suppress strict type check for icon prop */}
-                <Marker position={[coords.lat, coords.lon]} icon={icon} />
+                
+                {tableName === 'citizens' ? (
+                    <CircleMarker 
+                        center={[coords.lat, coords.lon]} 
+                        radius={8}
+                        pathOptions={{
+                            fillColor: '#3b82f6', // blue-500
+                            fillOpacity: 1,
+                            color: '#ffffff',
+                            weight: 2,
+                        }}
+                    />
+                ) : (
+                    /* @ts-ignore: Suppress strict type check for icon prop */
+                    <Marker position={[coords.lat, coords.lon]} icon={icon} />
+                )}
             </MapContainer>
         </div>
       )}

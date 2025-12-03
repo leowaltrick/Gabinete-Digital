@@ -95,7 +95,7 @@ const CitizenDetailsModal: React.FC<CitizenDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[80] flex items-end md:items-center justify-center sm:p-4">
         {/* Backdrop */}
         <div 
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity duration-300" 
