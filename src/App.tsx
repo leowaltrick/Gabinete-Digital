@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect, useCallback, Suspense, useRef } from 'react';
 import { Database, AlertTriangle, Clock, CheckCircle2, Activity, FilePlus, Zap, TrendingUp, ArrowUpRight, Calendar, Filter, PieChart, BarChart2, ChevronDown, X, AlertCircle, MapPin, Loader2, LogOut, Sun, Moon, User as UserIcon, Wifi, WifiOff, CloudOff, Users, ArrowRight, Phone, Mail, UserPlus, BarChart3 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
@@ -603,7 +602,11 @@ const App: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="flex-1 relative overflow-hidden flex flex-col glass-container rounded-[2.5rem]">
+                    {/* Adjusted container rounding to remove black borders on mobile */}
+                    <div className={`
+                        flex-1 relative overflow-hidden flex flex-col glass-container
+                        ${view === 'map' ? 'rounded-none md:rounded-[2.5rem] lg:border-0' : 'rounded-none md:rounded-[2.5rem]'}
+                    `}>
                         
                         {notification && <div className={`fixed top-6 right-6 z-[1000] px-4 py-3 rounded-xl shadow-2xl border flex items-center gap-3 animate-in slide-in-from-right duration-300 ${notification.type === 'success' ? 'bg-green-500 text-white border-green-600' : 'bg-red-500 text-white border-red-600'}`}>{notification.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}<span className="font-bold text-sm">{notification.message}</span></div>}
 
